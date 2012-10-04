@@ -1,0 +1,20 @@
+{
+	"name": "Widgetery",
+	"version": "0.0.1",
+	"description": "Canvas GUI Toolkit",
+	"main": "Jakefile.js",
+	"directories": {
+		"doc": "docs"
+	},
+	"dependencies": {
+		"jake": "~0.4.1",
+		"jake-utils": "~0.0.16",
+		"requirejs": "~1.0.8",
+		"mocha": "~1.5.0",
+		"should": "~1.2.0"
+	},
+	"scripts": {
+		"test": "jake test"
+	},
+	"author": "Manuel Alabor"
+}
