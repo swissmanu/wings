@@ -1,5 +1,5 @@
 /**
- * @license r.js 2.0.5 Copyright (c) 2010-2012, The Dojo Foundation All Rights Reserved.
+ * @license r.js 2.1.0 Copyright (c) 2010-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/jrburke/requirejs for details
  */
@@ -20,7 +20,7 @@ var requirejs, require, define;
 
     var fileName, env, fs, vm, path, exec, rhinoContext, dir, nodeRequire,
         nodeDefine, exists, reqMain, loadedOptimizedLib, existsForNode,
-        version = '2.0.5',
+        version = '2.1.0',
         jsSuffixRegExp = /\.js$/,
         commandOption = '',
         useLibLoaded = {},
@@ -105,7 +105,7 @@ var requirejs, require, define;
     }
 
     /** vim: et:ts=4:sw=4:sts=4
- * @license RequireJS 2.0.5 Copyright (c) 2010-2012, The Dojo Foundation All Rights Reserved.
+ * @license RequireJS 2.1.0 Copyright (c) 2010-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/jrburke/requirejs for details
  */
@@ -118,7 +118,7 @@ var requirejs, require, define;
 (function (global) {
     var req, s, head, baseElement, dataMain, src,
         interactiveScript, currentlyAddingScript, mainScript, subPath,
-        version = '2.0.5',
+        version = '2.1.0',
         commentRegExp = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg,
         cjsRequireRegExp = /[^.]\s*require\s*\(\s*["']([^'"\s]+)["']\s*\)/g,
         jsSuffixRegExp = /\.js$/,
@@ -253,41 +253,6 @@ var requirejs, require, define;
         return g;
     }
 
-    function makeContextModuleFunc(func, relMap, enableBuildCallback) {
-        return function () {
-            //A version of a require function that passes a moduleName
-            //value for items that may need to
-            //look up paths relative to the moduleName
-            var args = aps.call(arguments, 0), lastArg;
-            if (enableBuildCallback &&
-                    isFunction((lastArg = args[args.length - 1]))) {
-                lastArg.__requireJsBuild = true;
-            }
-            args.push(relMap);
-            return func.apply(null, args);
-        };
-    }
-
-    function addRequireMethods(req, context, relMap) {
-        each([
-            ['toUrl'],
-            ['undef'],
-            ['defined', 'requireDefined'],
-            ['specified', 'requireSpecified']
-        ], function (item) {
-            var prop = item[1] || item[0];
-            req[item[0]] = context ? makeContextModuleFunc(context[prop], relMap) :
-                    //If no context, then use default context. Reference from
-                    //contexts instead of early binding to default context, so
-                    //that during builds, the latest instance of the default
-                    //context with its config gets used.
-                    function () {
-                        var ctx = contexts[defContextName];
-                        return ctx[prop].apply(ctx, arguments);
-                    };
-        });
-    }
-
     /**
      * Constructs an error with a pointer to an URL with more information.
      * @param {String} id the error ID that maps to an ID on a web page.
@@ -344,12 +309,7 @@ var requirejs, require, define;
             defined = {},
             urlFetched = {},
             requireCounter = 1,
-            unnormalizedCounter = 1,
-            //Used to track the order in which modules
-            //should be executed, by the order they
-            //load. Important for consistent cycle resolution
-            //behavior.
-            waitAry = [];
+            unnormalizedCounter = 1;
 
         /**
          * Trims the . and .. from an array of path segments.
@@ -511,10 +471,23 @@ var requirejs, require, define;
                 //Pop off the first array value, since it failed, and
                 //retry
                 pathConfig.shift();
-                context.undef(id);
+                context.require.undef(id);
                 context.require([id]);
                 return true;
             }
+        }
+
+        //Turns a plugin!resource to [plugin, resource]
+        //with the plugin being undefined if the name
+        //did not have a plugin prefix.
+        function splitPrefix(name) {
+            var prefix,
+                index = name ? name.indexOf('!') : -1;
+            if (index > -1) {
+                prefix = name.substring(0, index);
+                name = name.substring(index + 1, name.length);
+            }
+            return [prefix, name];
         }
 
         /**
@@ -533,8 +506,7 @@ var requirejs, require, define;
          * @returns {Object}
          */
         function makeModuleMap(name, parentModuleMap, isNormalized, applyMap) {
-            var url, pluginModule, suffix,
-                index = name ? name.indexOf('!') : -1,
+            var url, pluginModule, suffix, nameParts,
                 prefix = null,
                 parentName = parentModuleMap ? parentModuleMap.name : null,
                 originalName = name,
@@ -548,10 +520,9 @@ var requirejs, require, define;
                 name = '_@r' + (requireCounter += 1);
             }
 
-            if (index !== -1) {
-                prefix = name.substring(0, index);
-                name = name.substring(index + 1, name.length);
-            }
+            nameParts = splitPrefix(name);
+            prefix = nameParts[0];
+            name = nameParts[1];
 
             if (prefix) {
                 prefix = normalize(prefix, parentName, applyMap);
@@ -572,6 +543,15 @@ var requirejs, require, define;
                 } else {
                     //A regular module.
                     normalizedName = normalize(name, parentName, applyMap);
+
+                    //Normalized name may be a plugin ID due to map config
+                    //application in normalize. The map config values must
+                    //already be normalized, so do not need to redo that part.
+                    nameParts = splitPrefix(normalizedName);
+                    prefix = nameParts[0];
+                    normalizedName = nameParts[1];
+                    isNormalized = true;
+
                     url = context.nameToUrl(normalizedName);
                 }
             }
@@ -663,160 +643,71 @@ var requirejs, require, define;
             }
         }
 
-        /**
-         * Helper function that creates a require function object to give to
-         * modules that ask for it as a dependency. It needs to be specific
-         * per module because of the implication of path mappings that may
-         * need to be relative to the module name.
-         */
-        function makeRequire(mod, enableBuildCallback, altRequire) {
-            var relMap = mod && mod.map,
-                modRequire = makeContextModuleFunc(altRequire || context.require,
-                                                   relMap,
-                                                   enableBuildCallback);
-
-            addRequireMethods(modRequire, context, relMap);
-            modRequire.isBrowser = isBrowser;
-
-            return modRequire;
-        }
-
         handlers = {
             'require': function (mod) {
-                return makeRequire(mod);
+                if (mod.require) {
+                    return mod.require;
+                } else {
+                    return (mod.require = context.makeRequire(mod.map));
+                }
             },
             'exports': function (mod) {
                 mod.usingExports = true;
                 if (mod.map.isDefine) {
-                    return (mod.exports = defined[mod.map.id] = {});
+                    if (mod.exports) {
+                        return mod.exports;
+                    } else {
+                        return (mod.exports = defined[mod.map.id] = {});
+                    }
                 }
             },
             'module': function (mod) {
-                return (mod.module = {
-                    id: mod.map.id,
-                    uri: mod.map.url,
-                    config: function () {
-                        return (config.config && config.config[mod.map.id]) || {};
-                    },
-                    exports: defined[mod.map.id]
-                });
+                if (mod.module) {
+                    return mod.module;
+                } else {
+                    return (mod.module = {
+                        id: mod.map.id,
+                        uri: mod.map.url,
+                        config: function () {
+                            return (config.config && config.config[mod.map.id]) || {};
+                        },
+                        exports: defined[mod.map.id]
+                    });
+                }
             }
         };
 
-        function removeWaiting(id) {
+        function cleanRegistry(id) {
             //Clean up machinery used for waiting modules.
             delete registry[id];
-
-            each(waitAry, function (mod, i) {
-                if (mod.map.id === id) {
-                    waitAry.splice(i, 1);
-                    if (!mod.defined) {
-                        context.waitCount -= 1;
-                    }
-                    return true;
-                }
-            });
         }
 
-        function findCycle(mod, traced) {
-            var id = mod.map.id,
-                depArray = mod.depMaps,
-                foundModule;
+        function breakCycle(mod, traced, processed) {
+            var id = mod.map.id;
 
-            //Do not bother with unitialized modules or not yet enabled
-            //modules.
-            if (!mod.inited) {
-                return;
-            }
+            if (mod.error) {
+                mod.emit('error', mod.error);
+            } else {
+                traced[id] = true;
+                each(mod.depMaps, function (depMap, i) {
+                    var depId = depMap.id,
+                        dep = registry[depId];
 
-            //Found the cycle.
-            if (traced[id]) {
-                return mod;
-            }
-
-            traced[id] = true;
-
-            //Trace through the dependencies.
-            each(depArray, function (depMap) {
-                var depId = depMap.id,
-                    depMod = registry[depId];
-
-                if (!depMod) {
-                    return;
-                }
-
-                if (!depMod.inited || !depMod.enabled) {
-                    //Dependency is not inited, so this cannot
-                    //be used to determine a cycle.
-                    foundModule = null;
-                    delete traced[id];
-                    return true;
-                }
-
-                //mixin traced to a new object for each dependency, so that
-                //sibling dependencies in this object to not generate a
-                //false positive match on a cycle. Ideally an Object.create
-                //type of prototype delegation would be used here, but
-                //optimizing for file size vs. execution speed since hopefully
-                //the trees are small for circular dependency scans relative
-                //to the full app perf.
-                return (foundModule = findCycle(depMod, mixin({}, traced)));
-            });
-
-            return foundModule;
-        }
-
-        function forceExec(mod, traced, uninited) {
-            var id = mod.map.id,
-                depArray = mod.depMaps;
-
-            if (!mod.inited || !mod.map.isDefine) {
-                return;
-            }
-
-            if (traced[id]) {
-                return defined[id];
-            }
-
-            traced[id] = mod;
-
-            each(depArray, function (depMap) {
-                var depId = depMap.id,
-                    depMod = registry[depId],
-                    value;
-
-                if (handlers[depId]) {
-                    return;
-                }
-
-                if (depMod) {
-                    if (!depMod.inited || !depMod.enabled) {
-                        //Dependency is not inited,
-                        //so this module cannot be
-                        //given a forced value yet.
-                        uninited[id] = true;
-                        return;
+                    //Only force things that have not completed
+                    //being defined, so still in the registry,
+                    //and only if it has not been matched up
+                    //in the module already.
+                    if (dep && !mod.depMatched[i] && !processed[depId]) {
+                        if (traced[depId]) {
+                            mod.defineDep(i, defined[depId]);
+                            mod.check(); //pass false?
+                        } else {
+                            breakCycle(dep, traced, processed);
+                        }
                     }
-
-                    //Get the value for the current dependency
-                    value = forceExec(depMod, traced, uninited);
-
-                    //Even with forcing it may not be done,
-                    //in particular if the module is waiting
-                    //on a plugin resource.
-                    if (!uninited[depId]) {
-                        mod.defineDepById(depId, value);
-                    }
-                }
-            });
-
-            mod.check(true);
-
-            return defined[id];
-        }
-
-        function modCheck(mod) {
-            mod.check();
+                });
+                processed[id] = true;
+            }
         }
 
         function checkLoaded() {
@@ -825,6 +716,7 @@ var requirejs, require, define;
                 //It is possible to disable the wait interval by using waitSeconds of 0.
                 expired = waitInterval && (context.startTime + waitInterval) < new Date().getTime(),
                 noLoads = [],
+                reqCalls = [],
                 stillLoading = false,
                 needCycleCheck = true;
 
@@ -843,6 +735,10 @@ var requirejs, require, define;
                 //Skip things that are not enabled or in error state.
                 if (!mod.enabled) {
                     return;
+                }
+
+                if (!map.isDefine) {
+                    reqCalls.push(mod);
                 }
 
                 if (!mod.error) {
@@ -879,31 +775,9 @@ var requirejs, require, define;
 
             //Not expired, check for a cycle.
             if (needCycleCheck) {
-
-                each(waitAry, function (mod) {
-                    if (mod.defined) {
-                        return;
-                    }
-
-                    var cycleMod = findCycle(mod, {}),
-                        traced = {};
-
-                    if (cycleMod) {
-                        forceExec(cycleMod, traced, {});
-
-                        //traced modules may have been
-                        //removed from the registry, but
-                        //their listeners still need to
-                        //be called.
-                        eachProp(traced, modCheck);
-                    }
+                each(reqCalls, function (mod) {
+                    breakCycle(mod, {}, {});
                 });
-
-                //Now that dependencies have
-                //been satisfied, trigger the
-                //completion check that then
-                //notifies listeners.
-                eachProp(registry, modCheck);
             }
 
             //If still waiting on loads, and the waiting load is something
@@ -969,7 +843,6 @@ var requirejs, require, define;
                 //doing a direct modification of the depMaps array
                 //would affect that config.
                 this.depMaps = depMaps && depMaps.slice(0);
-                this.depMaps.rjsSkipMap = depMaps.rjsSkipMap;
 
                 this.errback = errback;
 
@@ -989,20 +862,6 @@ var requirejs, require, define;
                 } else {
                     this.check();
                 }
-            },
-
-            defineDepById: function (id, depExports) {
-                var i;
-
-                //Find the index for this dependency.
-                each(this.depMaps, function (map, index) {
-                    if (map.id === id) {
-                        i = index;
-                        return true;
-                    }
-                });
-
-                return this.defineDep(i, depExports);
             },
 
             defineDep: function (i, depExports) {
@@ -1028,7 +887,9 @@ var requirejs, require, define;
                 //If the manager is for a plugin managed resource,
                 //ask the plugin to load it now.
                 if (this.shim) {
-                    makeRequire(this, true)(this.shim.deps || [], bind(this, function () {
+                    context.makeRequire(this.map, {
+                        enableBuildCallback: true
+                    })(this.shim.deps || [], bind(this, function () {
                         return map.prefix ? this.callPlugin() : this.load();
                     }));
                 } else {
@@ -1049,11 +910,9 @@ var requirejs, require, define;
 
             /**
              * Checks is the module is ready to define itself, and if so,
-             * define it. If the silent argument is true, then it will just
-             * define, but not notify listeners, and not ask for a context-wide
-             * check of all loaded modules. That is useful for cycle breaking.
+             * define it.
              */
-            check: function (silent) {
+            check: function () {
                 if (!this.enabled || this.enabling) {
                     return;
                 }
@@ -1131,11 +990,6 @@ var requirejs, require, define;
                         delete registry[id];
 
                         this.defined = true;
-                        context.waitCount -= 1;
-                        if (context.waitCount === 0) {
-                            //Clear the wait array used for cycles.
-                            waitAry = [];
-                        }
                     }
 
                     //Finished the define stage. Allow calling check again
@@ -1143,25 +997,33 @@ var requirejs, require, define;
                     //cycle.
                     this.defining = false;
 
-                    if (!silent) {
-                        if (this.defined && !this.defineEmitted) {
-                            this.defineEmitted = true;
-                            this.emit('defined', this.exports);
-                            this.defineEmitComplete = true;
-                        }
+                    if (this.defined && !this.defineEmitted) {
+                        this.defineEmitted = true;
+                        this.emit('defined', this.exports);
+                        this.defineEmitComplete = true;
                     }
+
                 }
             },
 
             callPlugin: function () {
                 var map = this.map,
                     id = map.id,
-                    pluginMap = makeModuleMap(map.prefix, null, false, true);
+                    //Map already normalized the prefix.
+                    pluginMap = makeModuleMap(map.prefix);
+
+                //Mark this as a dependency for this plugin, so it
+                //can be traced for cycles.
+                this.depMaps.push(pluginMap);
 
                 on(pluginMap, 'defined', bind(this, function (plugin) {
                     var load, normalizedMap, normalizedMod,
                         name = this.map.name,
-                        parentName = this.map.parentMap ? this.map.parentMap.name : null;
+                        parentName = this.map.parentMap ? this.map.parentMap.name : null,
+                        localRequire = context.makeRequire(map.parentMap, {
+                            enableBuildCallback: true,
+                            skipMap: true
+                        });
 
                     //If current map is not normalized, wait for that
                     //normalized name to load instead of continuing.
@@ -1173,10 +1035,10 @@ var requirejs, require, define;
                             }) || '';
                         }
 
+                        //prefix and name should already be normalized, no need
+                        //for applying map config again either.
                         normalizedMap = makeModuleMap(map.prefix + '!' + name,
-                                                      this.map.parentMap,
-                                                      false,
-                                                      true);
+                                                      this.map.parentMap);
                         on(normalizedMap,
                             'defined', bind(this, function (value) {
                                 this.init([], function () { return value; }, null, {
@@ -1184,8 +1046,13 @@ var requirejs, require, define;
                                     ignore: true
                                 });
                             }));
+
                         normalizedMod = registry[normalizedMap.id];
                         if (normalizedMod) {
+                            //Mark this as a dependency for this plugin, so it
+                            //can be traced for cycles.
+                            this.depMaps.push(normalizedMap);
+
                             if (this.events.error) {
                                 normalizedMod.on('error', bind(this, function (err) {
                                     this.emit('error', err);
@@ -1212,7 +1079,7 @@ var requirejs, require, define;
                         //since they will never be resolved otherwise now.
                         eachProp(registry, function (mod) {
                             if (mod.map.id.indexOf(id + '_unnormalized') === 0) {
-                                removeWaiting(mod.map.id);
+                                cleanRegistry(mod.map.id);
                             }
                         });
 
@@ -1221,9 +1088,19 @@ var requirejs, require, define;
 
                     //Allow plugins to load other code without having to know the
                     //context or how to 'complete' the load.
-                    load.fromText = function (moduleName, text) {
+                    load.fromText = bind(this, function (text, textAlt) {
                         /*jslint evil: true */
-                        var hasInteractive = useInteractive;
+                        var moduleName = map.name,
+                            moduleMap = makeModuleMap(moduleName),
+                            hasInteractive = useInteractive;
+
+                        //As of 2.1.0, support just passing the text, to reinforce
+                        //fromText only being called once per resource. Still
+                        //support old style of passing moduleName but discard
+                        //that moduleName in favor of the internal ref.
+                        if (textAlt) {
+                            text = textAlt;
+                        }
 
                         //Turn off interactive script matching for IE for any define
                         //calls in the text, then turn it back on at the end.
@@ -1233,25 +1110,35 @@ var requirejs, require, define;
 
                         //Prime the system by creating a module instance for
                         //it.
-                        getModule(makeModuleMap(moduleName));
+                        getModule(moduleMap);
 
-                        req.exec(text);
+                        try {
+                            req.exec(text);
+                        } catch (e) {
+                            throw new Error('fromText eval for ' + moduleName +
+                                            ' failed: ' + e);
+                        }
 
                         if (hasInteractive) {
                             useInteractive = true;
                         }
 
+                        //Mark this as a dependency for the plugin
+                        //resource
+                        this.depMaps.push(moduleMap);
+
                         //Support anonymous modules.
                         context.completeLoad(moduleName);
-                    };
+
+                        //Bind the value of that module to the value for this
+                        //resource ID.
+                        localRequire([moduleName], load);
+                    });
 
                     //Use parentName here since the plugin's name is not reliable,
                     //could be some weird string with no path that actually wants to
                     //reference the parentName's path.
-                    plugin.load(map.name, makeRequire(map.parentMap, true, function (deps, cb, er) {
-                        deps.rjsSkipMap = true;
-                        return context.require(deps, cb, er);
-                    }), load, config);
+                    plugin.load(map.name, localRequire, load, config);
                 }));
 
                 context.enable(pluginMap, this);
@@ -1260,12 +1147,6 @@ var requirejs, require, define;
 
             enable: function () {
                 this.enabled = true;
-
-                if (!this.waitPushed) {
-                    waitAry.push(this);
-                    context.waitCount += 1;
-                    this.waitPushed = true;
-                }
 
                 //Set flag mentioning that the module is enabling,
                 //so that immediate calls to the defined callbacks
@@ -1283,7 +1164,7 @@ var requirejs, require, define;
                         depMap = makeModuleMap(depMap,
                                                (this.map.isDefine ? this.map : this.map.parentMap),
                                                false,
-                                               !this.depMaps.rjsSkipMap);
+                                               !this.skipMap);
                         this.depMaps[i] = depMap;
 
                         handler = handlers[depMap.id];
@@ -1345,7 +1226,7 @@ var requirejs, require, define;
                 if (name === 'error') {
                     //Now that the error handler was triggered, remove
                     //the listeners, since this broken Module instance
-                    //can stay around for a while in the registry/waitAry.
+                    //can stay around for a while in the registry.
                     delete this.events[name];
                 }
             }
@@ -1392,16 +1273,16 @@ var requirejs, require, define;
             };
         }
 
-        return (context = {
+        context = {
             config: config,
             contextName: contextName,
             registry: registry,
             defined: defined,
             urlFetched: urlFetched,
-            waitCount: 0,
             defQueue: defQueue,
             Module: Module,
             makeModuleMap: makeModuleMap,
+            nextTick: req.nextTick,
 
             /**
              * Set a configuration for the context.
@@ -1443,8 +1324,8 @@ var requirejs, require, define;
                                 deps: value
                             };
                         }
-                        if (value.exports && !value.exports.__buildReady) {
-                            value.exports = context.makeShimExports(value.exports);
+                        if (value.exports && !value.exportsFn) {
+                            value.exportsFn = context.makeShimExports(value);
                         }
                         shim[id] = value;
                     });
@@ -1499,125 +1380,152 @@ var requirejs, require, define;
                 }
             },
 
-            makeShimExports: function (exports) {
-                var func;
-                if (typeof exports === 'string') {
-                    func = function () {
-                        return getGlobal(exports);
-                    };
-                    //Save the exports for use in nodefine checking.
-                    func.exports = exports;
-                    return func;
-                } else {
-                    return function () {
-                        return exports.apply(global, arguments);
-                    };
+            makeShimExports: function (value) {
+                function fn() {
+                    var ret;
+                    if (value.init) {
+                        ret = value.init.apply(global, arguments);
+                    }
+                    return ret || getGlobal(value.exports);
                 }
+                return fn;
             },
 
-            requireDefined: function (id, relMap) {
-                return hasProp(defined, makeModuleMap(id, relMap, false, true).id);
-            },
+            makeRequire: function (relMap, options) {
+                options = options || {};
 
-            requireSpecified: function (id, relMap) {
-                id = makeModuleMap(id, relMap, false, true).id;
-                return hasProp(defined, id) || hasProp(registry, id);
-            },
+                function require(deps, callback, errback) {
+                    var id, map, requireMod, args;
 
-            require: function (deps, callback, errback, relMap) {
-                var moduleName, id, map, requireMod, args;
-                if (typeof deps === 'string') {
-                    if (isFunction(callback)) {
-                        //Invalid call
-                        return onError(makeError('requireargs', 'Invalid require call'), errback);
+                    if (options.enableBuildCallback && callback && isFunction(callback)) {
+                        callback.__requireJsBuild = true;
                     }
 
-                    //Synchronous access to one module. If require.get is
-                    //available (as in the Node adapter), prefer that.
-                    //In this case deps is the moduleName and callback is
-                    //the relMap
-                    if (req.get) {
-                        return req.get(context, deps, callback);
+                    if (typeof deps === 'string') {
+                        if (isFunction(callback)) {
+                            //Invalid call
+                            return onError(makeError('requireargs', 'Invalid require call'), errback);
+                        }
+
+                        //If require|exports|module are requested, get the
+                        //value for them from the special handlers. Caveat:
+                        //this only works while module is being defined.
+                        if (relMap && handlers[deps]) {
+                            return handlers[deps](registry[relMap.id]);
+                        }
+
+                        //Synchronous access to one module. If require.get is
+                        //available (as in the Node adapter), prefer that.
+                        if (req.get) {
+                            return req.get(context, deps, relMap);
+                        }
+
+                        //Normalize module name, if it contains . or ..
+                        map = makeModuleMap(deps, relMap, false, true);
+                        id = map.id;
+
+                        if (!hasProp(defined, id)) {
+                            return onError(makeError('notloaded', 'Module name "' +
+                                        id +
+                                        '" has not been loaded yet for context: ' +
+                                        contextName +
+                                        (relMap ? '' : '. Use require([])')));
+                        }
+                        return defined[id];
                     }
 
-                    //Just return the module wanted. In this scenario, the
-                    //second arg (if passed) is just the relMap.
-                    moduleName = deps;
-                    relMap = callback;
+                    //Any defined modules in the global queue, intake them now.
+                    takeGlobalQueue();
 
-                    //Normalize module name, if it contains . or ..
-                    map = makeModuleMap(moduleName, relMap, false, true);
-                    id = map.id;
-
-                    if (!hasProp(defined, id)) {
-                        return onError(makeError('notloaded', 'Module name "' +
-                                    id +
-                                    '" has not been loaded yet for context: ' +
-                                    contextName));
+                    //Make sure any remaining defQueue items get properly processed.
+                    while (defQueue.length) {
+                        args = defQueue.shift();
+                        if (args[0] === null) {
+                            return onError(makeError('mismatch', 'Mismatched anonymous define() module: ' + args[args.length - 1]));
+                        } else {
+                            //args are id, deps, factory. Should be normalized by the
+                            //define() function.
+                            callGetModule(args);
+                        }
                     }
-                    return defined[id];
+
+                    //Mark all the dependencies as needing to be loaded.
+                    context.nextTick(function () {
+                        requireMod = getModule(makeModuleMap(null, relMap));
+
+                        //Store if map config should be applied to this require
+                        //call for dependencies.
+                        requireMod.skipMap = options.skipMap;
+
+                        requireMod.init(deps, callback, errback, {
+                            enabled: true
+                        });
+
+                        checkLoaded();
+                    });
+
+                    return require;
                 }
 
-                //Callback require. Normalize args. if callback or errback is
-                //not a function, it means it is a relMap. Test errback first.
-                if (errback && !isFunction(errback)) {
-                    relMap = errback;
-                    errback = undefined;
-                }
-                if (callback && !isFunction(callback)) {
-                    relMap = callback;
-                    callback = undefined;
-                }
+                mixin(require, {
+                    isBrowser: isBrowser,
 
-                //Any defined modules in the global queue, intake them now.
-                takeGlobalQueue();
+                    /**
+                     * Converts a module name + .extension into an URL path.
+                     * *Requires* the use of a module name. It does not support using
+                     * plain URLs like nameToUrl.
+                     */
+                    toUrl: function (moduleNamePlusExt) {
+                        var index = moduleNamePlusExt.lastIndexOf('.'),
+                            ext = null;
 
-                //Make sure any remaining defQueue items get properly processed.
-                while (defQueue.length) {
-                    args = defQueue.shift();
-                    if (args[0] === null) {
-                        return onError(makeError('mismatch', 'Mismatched anonymous define() module: ' + args[args.length - 1]));
-                    } else {
-                        //args are id, deps, factory. Should be normalized by the
-                        //define() function.
-                        callGetModule(args);
+                        if (index !== -1) {
+                            ext = moduleNamePlusExt.substring(index, moduleNamePlusExt.length);
+                            moduleNamePlusExt = moduleNamePlusExt.substring(0, index);
+                        }
+
+                        return context.nameToUrl(normalize(moduleNamePlusExt,
+                                                relMap && relMap.id, true), ext);
+                    },
+
+                    defined: function (id) {
+                        return hasProp(defined, makeModuleMap(id, relMap, false, true).id);
+                    },
+
+                    specified: function (id) {
+                        id = makeModuleMap(id, relMap, false, true).id;
+                        return hasProp(defined, id) || hasProp(registry, id);
                     }
-                }
-
-                //Mark all the dependencies as needing to be loaded.
-                requireMod = getModule(makeModuleMap(null, relMap));
-
-                requireMod.init(deps, callback, errback, {
-                    enabled: true
                 });
 
-                checkLoaded();
+                //Only allow undef on top level require calls
+                if (!relMap) {
+                    require.undef = function (id) {
+                        //Bind any waiting define() calls to this context,
+                        //fix for #408
+                        takeGlobalQueue();
 
-                return context.require;
-            },
+                        var map = makeModuleMap(id, relMap, true),
+                            mod = registry[id];
 
-            undef: function (id) {
-                //Bind any waiting define() calls to this context,
-                //fix for #408
-                takeGlobalQueue();
+                        delete defined[id];
+                        delete urlFetched[map.url];
+                        delete undefEvents[id];
 
-                var map = makeModuleMap(id, null, true),
-                    mod = registry[id];
+                        if (mod) {
+                            //Hold on to listeners in case the
+                            //module will be attempted to be reloaded
+                            //using a different config.
+                            if (mod.events.defined) {
+                                undefEvents[id] = mod.events;
+                            }
 
-                delete defined[id];
-                delete urlFetched[map.url];
-                delete undefEvents[id];
-
-                if (mod) {
-                    //Hold on to listeners in case the
-                    //module will be attempted to be reloaded
-                    //using a different config.
-                    if (mod.events.defined) {
-                        undefEvents[id] = mod.events;
-                    }
-
-                    removeWaiting(id);
+                            cleanRegistry(id);
+                        }
+                    };
                 }
+
+                return require;
             },
 
             /**
@@ -1641,7 +1549,7 @@ var requirejs, require, define;
             completeLoad: function (moduleName) {
                 var found, args, mod,
                     shim = config.shim[moduleName] || {},
-                    shExports = shim.exports && shim.exports.exports;
+                    shExports = shim.exports;
 
                 takeGlobalQueue();
 
@@ -1681,29 +1589,11 @@ var requirejs, require, define;
                     } else {
                         //A script that does not call define(), so just simulate
                         //the call for it.
-                        callGetModule([moduleName, (shim.deps || []), shim.exports]);
+                        callGetModule([moduleName, (shim.deps || []), shim.exportsFn]);
                     }
                 }
 
                 checkLoaded();
-            },
-
-            /**
-             * Converts a module name + .extension into an URL path.
-             * *Requires* the use of a module name. It does not support using
-             * plain URLs like nameToUrl.
-             */
-            toUrl: function (moduleNamePlusExt, relModuleMap) {
-                var index = moduleNamePlusExt.lastIndexOf('.'),
-                    ext = null;
-
-                if (index !== -1) {
-                    ext = moduleNamePlusExt.substring(index, moduleNamePlusExt.length);
-                    moduleNamePlusExt = moduleNamePlusExt.substring(0, index);
-                }
-
-                return context.nameToUrl(normalize(moduleNamePlusExt, relModuleMap && relModuleMap.id, true),
-                                         ext);
             },
 
             /**
@@ -1819,7 +1709,10 @@ var requirejs, require, define;
                     return onError(makeError('scripterror', 'Script error', evt, [data.id]));
                 }
             }
-        });
+        };
+
+        context.require = context.makeRequire();
+        return context;
     }
 
     /**
@@ -1881,6 +1774,16 @@ var requirejs, require, define;
     };
 
     /**
+     * Execute something after the current tick
+     * of the event loop. Override for other envs
+     * that have a better solution than setTimeout.
+     * @param  {Function} fn function to execute later.
+     */
+    req.nextTick = typeof setTimeout !== 'undefined' ? function (fn) {
+        setTimeout(fn, 4);
+    } : function (fn) { fn(); };
+
+    /**
      * Export require as a global, but only if it does not already exist.
      */
     if (!require) {
@@ -1900,9 +1803,21 @@ var requirejs, require, define;
     //Create default context.
     req({});
 
-    //Exports some context-sensitive methods on global require, using
-    //default context if no context specified.
-    addRequireMethods(req);
+    //Exports some context-sensitive methods on global require.
+    each([
+        'toUrl',
+        'undef',
+        'defined',
+        'specified'
+    ], function (prop) {
+        //Reference from contexts instead of early binding to default context,
+        //so that during builds, the latest instance of the default context
+        //with its config gets used.
+        req[prop] = function () {
+            var ctx = contexts[defContextName];
+            return ctx.require[prop].apply(ctx, arguments);
+        };
+    });
 
     if (isBrowser) {
         head = s.head = document.getElementsByTagName('head')[0];
@@ -2080,7 +1995,7 @@ var requirejs, require, define;
     define = function (name, deps, callback) {
         var node, context;
 
-        //Allow for anonymous functions
+        //Allow for anonymous modules
         if (typeof name !== 'string') {
             //Adjust args appropriately
             callback = deps;
@@ -2235,12 +2150,20 @@ var requirejs, require, define;
             if (ret === undefined) {
                 //Try to dynamically fetch it.
                 req.load(context, moduleName, moduleMap.url);
-                //The above call is sync, so can do the next thing safely.
+
+                //Enable the module
+                context.enable(moduleMap, relModuleMap);
+
+                //The above calls are sync, so can do the next thing safely.
                 ret = context.defined[moduleName];
             }
         }
 
         return ret;
+    };
+
+    req.nextTick = function (fn) {
+        process.nextTick(fn);
     };
 
     //Add wrapper around the code so that it gets the requirejs
@@ -9471,9 +9394,13 @@ exports.is_identifier_char = is_identifier_char;
 exports.set_logger = function(logger) {
         warn = logger;
 };
+
+// Local variables:
+// js-indent-level: 8
+// End:
 });
-define('uglifyjs/squeeze-more', ["require", "exports", "module", "./parse-js", "./process"], function(require, exports, module) {
-    var jsp = require("./parse-js"),
+define('uglifyjs/squeeze-more', ["require", "exports", "module", "./parse-js", "./squeeze-more"], function(require, exports, module) {
+var jsp = require("./parse-js"),
     pro = require("./process"),
     slice = jsp.slice,
     member = jsp.member,
@@ -9547,9 +9474,12 @@ function ast_squeeze_more(ast) {
 };
 
 exports.ast_squeeze_more = ast_squeeze_more;
+
+// Local variables:
+// js-indent-level: 8
+// End:
 });
 define('uglifyjs/process', ["require", "exports", "module", "./parse-js", "./squeeze-more"], function(require, exports, module) {
-
 /***********************************************************************
 
   A JavaScript tokenizer / parser / beautifier / compressor.
@@ -9611,6 +9541,7 @@ define('uglifyjs/process', ["require", "exports", "module", "./parse-js", "./squ
  ***********************************************************************/
 
 var jsp = require("./parse-js"),
+    curry = jsp.curry,
     slice = jsp.slice,
     member = jsp.member,
     is_identifier_char = jsp.is_identifier_char,
@@ -9941,8 +9872,8 @@ Scope.prototype = {
                         return name;
                 }
         },
-        active: function(dir) {
-                return member(dir, this.directives) || this.parent && this.parent.active(dir);
+        active_directive: function(dir) {
+                return member(dir, this.directives) || this.parent && this.parent.active_directive(dir);
         }
 };
 
@@ -10389,9 +10320,9 @@ function prepare_ifs(ast) {
                         var fi = statements[i];
                         if (fi[0] != "if") continue;
 
-                        if (fi[3] && walk(fi[3])) continue;
+                        if (fi[3]) continue;
 
-                        var t = walk(fi[2]);
+                        var t = fi[2];
                         if (!aborts(t)) continue;
 
                         var conditional = walk(fi[1]);
@@ -10450,6 +10381,10 @@ function for_side_effects(ast, handler) {
                 if (op == "++" || op == "--")
                         return found.apply(this, arguments);
         };
+        function binary(op) {
+                if (op == "&&" || op == "||")
+                        return found.apply(this, arguments);
+        };
         return w.with_walkers({
                 "try": found,
                 "throw": found,
@@ -10468,6 +10403,8 @@ function for_side_effects(ast, handler) {
                 "return": found,
                 "unary-prefix": unary,
                 "unary-postfix": unary,
+                "conditional": found,
+                "binary": binary,
                 "defun": found
         }, function(){
                 while (true) try {
@@ -10543,7 +10480,7 @@ function ast_lift_variables(ast) {
                         if (ret == null) ret = d;
                         else ret = [ "seq", d, ret ];
                 }
-                if (ret == null) {
+                if (ret == null && w.parent()[0] != "for") {
                         if (w.parent()[0] == "for-in")
                                 return [ "name", defs[0][0] ];
                         return MAP.skip;
@@ -10574,6 +10511,12 @@ function ast_lift_variables(ast) {
 };
 
 function ast_squeeze(ast, options) {
+        ast = squeeze_1(ast, options);
+        ast = squeeze_2(ast, options);
+        return ast;
+};
+
+function squeeze_1(ast, options) {
         options = defaults(options, {
                 make_seqs   : true,
                 dead_code   : true,
@@ -10645,17 +10588,7 @@ function ast_squeeze(ast, options) {
         };
 
         function _lambda(name, args, body) {
-                return [ this[0], name, args, with_scope(body.scope, function() {
-                        return tighten(body, "lambda");
-                }) ];
-        };
-
-        function with_scope(s, cont) {
-                var _scope = scope;
-                scope = s;
-                var ret = cont();
-                scope = _scope;
-                return ret;
+                return [ this[0], name, args, tighten(body, "lambda") ];
         };
 
         // this function does a few things:
@@ -10875,9 +10808,7 @@ function ast_squeeze(ast, options) {
                 },
                 "if": make_if,
                 "toplevel": function(body) {
-                        return with_scope(this.scope, function() {
-                            return [ "toplevel", tighten(body) ];
-                        });
+                        return [ "toplevel", tighten(body) ];
                 },
                 "switch": function(expr, body) {
                         var last = body.length - 1;
@@ -10949,12 +10880,6 @@ function ast_squeeze(ast, options) {
                         }
                         return [ this[0], op, lvalue, rvalue ];
                 },
-                "directive": function(dir) {
-                        if (scope.active(dir))
-                            return [ "block" ];
-                        scope.directives.push(dir);
-                        return [ this[0], dir ];
-                },
                 "call": function(expr, args) {
                         expr = walk(expr);
                         if (options.unsafe && expr[0] == "dot" && expr[1][0] == "string" && expr[2] == "toString") {
@@ -10972,12 +10897,4632 @@ function ast_squeeze(ast, options) {
                         return [ this[0], num ];
                 }
         }, function() {
-                for (var i = 0; i < 2; ++i) {
-                        ast = prepare_ifs(ast);
-                        ast = walk(ast_add_scope(ast));
-                }
-                return ast;
+                return walk(prepare_ifs(walk(prepare_ifs(ast))));
         });
 };
 
-/* -----[ re-generate code from
+function squeeze_2(ast, options) {
+        var w = ast_walker(), walk = w.walk, scope;
+        function with_scope(s, cont) {
+                var save = scope, ret;
+                scope = s;
+                ret = cont();
+                scope = save;
+                return ret;
+        };
+        function lambda(name, args, body) {
+                return [ this[0], name, args, with_scope(body.scope, curry(MAP, body, walk)) ];
+        };
+        return w.with_walkers({
+                "directive": function(dir) {
+                        if (scope.active_directive(dir))
+                                return [ "block" ];
+                        scope.directives.push(dir);
+                },
+                "toplevel": function(body) {
+                        return [ this[0], with_scope(this.scope, curry(MAP, body, walk)) ];
+                },
+                "function": lambda,
+                "defun": lambda
+        }, function(){
+                return walk(ast_add_scope(ast));
+        });
+};
+
+/* -----[ re-generate code from the AST ]----- */
+
+var DOT_CALL_NO_PARENS = jsp.array_to_hash([
+        "name",
+        "array",
+        "object",
+        "string",
+        "dot",
+        "sub",
+        "call",
+        "regexp",
+        "defun"
+]);
+
+function make_string(str, ascii_only) {
+        var dq = 0, sq = 0;
+        str = str.replace(/[\\\b\f\n\r\t\x22\x27\u2028\u2029\0]/g, function(s){
+                switch (s) {
+                    case "\\": return "\\\\";
+                    case "\b": return "\\b";
+                    case "\f": return "\\f";
+                    case "\n": return "\\n";
+                    case "\r": return "\\r";
+                    case "\u2028": return "\\u2028";
+                    case "\u2029": return "\\u2029";
+                    case '"': ++dq; return '"';
+                    case "'": ++sq; return "'";
+                    case "\0": return "\\0";
+                }
+                return s;
+        });
+        if (ascii_only) str = to_ascii(str);
+        if (dq > sq) return "'" + str.replace(/\x27/g, "\\'") + "'";
+        else return '"' + str.replace(/\x22/g, '\\"') + '"';
+};
+
+function to_ascii(str) {
+        return str.replace(/[\u0080-\uffff]/g, function(ch) {
+                var code = ch.charCodeAt(0).toString(16);
+                while (code.length < 4) code = "0" + code;
+                return "\\u" + code;
+        });
+};
+
+var SPLICE_NEEDS_BRACKETS = jsp.array_to_hash([ "if", "while", "do", "for", "for-in", "with" ]);
+
+function gen_code(ast, options) {
+        options = defaults(options, {
+                indent_start : 0,
+                indent_level : 4,
+                quote_keys   : false,
+                space_colon  : false,
+                beautify     : false,
+                ascii_only   : false,
+                inline_script: false
+        });
+        var beautify = !!options.beautify;
+        var indentation = 0,
+            newline = beautify ? "\n" : "",
+            space = beautify ? " " : "";
+
+        function encode_string(str) {
+                var ret = make_string(str, options.ascii_only);
+                if (options.inline_script)
+                        ret = ret.replace(/<\x2fscript([>\/\t\n\f\r ])/gi, "<\\/script$1");
+                return ret;
+        };
+
+        function make_name(name) {
+                name = name.toString();
+                if (options.ascii_only)
+                        name = to_ascii(name);
+                return name;
+        };
+
+        function indent(line) {
+                if (line == null)
+                        line = "";
+                if (beautify)
+                        line = repeat_string(" ", options.indent_start + indentation * options.indent_level) + line;
+                return line;
+        };
+
+        function with_indent(cont, incr) {
+                if (incr == null) incr = 1;
+                indentation += incr;
+                try { return cont.apply(null, slice(arguments, 1)); }
+                finally { indentation -= incr; }
+        };
+
+        function last_char(str) {
+                str = str.toString();
+                return str.charAt(str.length - 1);
+        };
+
+        function first_char(str) {
+                return str.toString().charAt(0);
+        };
+
+        function add_spaces(a) {
+                if (beautify)
+                        return a.join(" ");
+                var b = [];
+                for (var i = 0; i < a.length; ++i) {
+                        var next = a[i + 1];
+                        b.push(a[i]);
+                        if (next &&
+                            ((is_identifier_char(last_char(a[i])) && (is_identifier_char(first_char(next))
+                                                                      || first_char(next) == "\\")) ||
+                             (/[\+\-]$/.test(a[i].toString()) && /^[\+\-]/.test(next.toString())))) {
+                                b.push(" ");
+                        }
+                }
+                return b.join("");
+        };
+
+        function add_commas(a) {
+                return a.join("," + space);
+        };
+
+        function parenthesize(expr) {
+                var gen = make(expr);
+                for (var i = 1; i < arguments.length; ++i) {
+                        var el = arguments[i];
+                        if ((el instanceof Function && el(expr)) || expr[0] == el)
+                                return "(" + gen + ")";
+                }
+                return gen;
+        };
+
+        function best_of(a) {
+                if (a.length == 1) {
+                        return a[0];
+                }
+                if (a.length == 2) {
+                        var b = a[1];
+                        a = a[0];
+                        return a.length <= b.length ? a : b;
+                }
+                return best_of([ a[0], best_of(a.slice(1)) ]);
+        };
+
+        function needs_parens(expr) {
+                if (expr[0] == "function" || expr[0] == "object") {
+                        // dot/call on a literal function requires the
+                        // function literal itself to be parenthesized
+                        // only if it's the first "thing" in a
+                        // statement.  This means that the parent is
+                        // "stat", but it could also be a "seq" and
+                        // we're the first in this "seq" and the
+                        // parent is "stat", and so on.  Messy stuff,
+                        // but it worths the trouble.
+                        var a = slice(w.stack()), self = a.pop(), p = a.pop();
+                        while (p) {
+                                if (p[0] == "stat") return true;
+                                if (((p[0] == "seq" || p[0] == "call" || p[0] == "dot" || p[0] == "sub" || p[0] == "conditional") && p[1] === self) ||
+                                    ((p[0] == "binary" || p[0] == "assign" || p[0] == "unary-postfix") && p[2] === self)) {
+                                        self = p;
+                                        p = a.pop();
+                                } else {
+                                        return false;
+                                }
+                        }
+                }
+                return !HOP(DOT_CALL_NO_PARENS, expr[0]);
+        };
+
+        function make_num(num) {
+                var str = num.toString(10), a = [ str.replace(/^0\./, ".").replace('e+', 'e') ], m;
+                if (Math.floor(num) === num) {
+                        if (num >= 0) {
+                                a.push("0x" + num.toString(16).toLowerCase(), // probably pointless
+                                       "0" + num.toString(8)); // same.
+                        } else {
+                                a.push("-0x" + (-num).toString(16).toLowerCase(), // probably pointless
+                                       "-0" + (-num).toString(8)); // same.
+                        }
+                        if ((m = /^(.*?)(0+)$/.exec(num))) {
+                                a.push(m[1] + "e" + m[2].length);
+                        }
+                } else if ((m = /^0?\.(0+)(.*)$/.exec(num))) {
+                        a.push(m[2] + "e-" + (m[1].length + m[2].length),
+                               str.substr(str.indexOf(".")));
+                }
+                return best_of(a);
+        };
+
+        var w = ast_walker();
+        var make = w.walk;
+        return w.with_walkers({
+                "string": encode_string,
+                "num": make_num,
+                "name": make_name,
+                "debugger": function(){ return "debugger;" },
+                "toplevel": function(statements) {
+                        return make_block_statements(statements)
+                                .join(newline + newline);
+                },
+                "splice": function(statements) {
+                        var parent = w.parent();
+                        if (HOP(SPLICE_NEEDS_BRACKETS, parent)) {
+                                // we need block brackets in this case
+                                return make_block.apply(this, arguments);
+                        } else {
+                                return MAP(make_block_statements(statements, true),
+                                           function(line, i) {
+                                                   // the first line is already indented
+                                                   return i > 0 ? indent(line) : line;
+                                           }).join(newline);
+                        }
+                },
+                "block": make_block,
+                "var": function(defs) {
+                        return "var " + add_commas(MAP(defs, make_1vardef)) + ";";
+                },
+                "const": function(defs) {
+                        return "const " + add_commas(MAP(defs, make_1vardef)) + ";";
+                },
+                "try": function(tr, ca, fi) {
+                        var out = [ "try", make_block(tr) ];
+                        if (ca) out.push("catch", "(" + ca[0] + ")", make_block(ca[1]));
+                        if (fi) out.push("finally", make_block(fi));
+                        return add_spaces(out);
+                },
+                "throw": function(expr) {
+                        return add_spaces([ "throw", make(expr) ]) + ";";
+                },
+                "new": function(ctor, args) {
+                        args = args.length > 0 ? "(" + add_commas(MAP(args, function(expr){
+                                return parenthesize(expr, "seq");
+                        })) + ")" : "";
+                        return add_spaces([ "new", parenthesize(ctor, "seq", "binary", "conditional", "assign", function(expr){
+                                var w = ast_walker(), has_call = {};
+                                try {
+                                        w.with_walkers({
+                                                "call": function() { throw has_call },
+                                                "function": function() { return this }
+                                        }, function(){
+                                                w.walk(expr);
+                                        });
+                                } catch(ex) {
+                                        if (ex === has_call)
+                                                return true;
+                                        throw ex;
+                                }
+                        }) + args ]);
+                },
+                "switch": function(expr, body) {
+                        return add_spaces([ "switch", "(" + make(expr) + ")", make_switch_block(body) ]);
+                },
+                "break": function(label) {
+                        var out = "break";
+                        if (label != null)
+                                out += " " + make_name(label);
+                        return out + ";";
+                },
+                "continue": function(label) {
+                        var out = "continue";
+                        if (label != null)
+                                out += " " + make_name(label);
+                        return out + ";";
+                },
+                "conditional": function(co, th, el) {
+                        return add_spaces([ parenthesize(co, "assign", "seq", "conditional"), "?",
+                                            parenthesize(th, "seq"), ":",
+                                            parenthesize(el, "seq") ]);
+                },
+                "assign": function(op, lvalue, rvalue) {
+                        if (op && op !== true) op += "=";
+                        else op = "=";
+                        return add_spaces([ make(lvalue), op, parenthesize(rvalue, "seq") ]);
+                },
+                "dot": function(expr) {
+                        var out = make(expr), i = 1;
+                        if (expr[0] == "num") {
+                                if (!/[a-f.]/i.test(out))
+                                        out += ".";
+                        } else if (expr[0] != "function" && needs_parens(expr))
+                                out = "(" + out + ")";
+                        while (i < arguments.length)
+                                out += "." + make_name(arguments[i++]);
+                        return out;
+                },
+                "call": function(func, args) {
+                        var f = make(func);
+                        if (f.charAt(0) != "(" && needs_parens(func))
+                                f = "(" + f + ")";
+                        return f + "(" + add_commas(MAP(args, function(expr){
+                                return parenthesize(expr, "seq");
+                        })) + ")";
+                },
+                "function": make_function,
+                "defun": make_function,
+                "if": function(co, th, el) {
+                        var out = [ "if", "(" + make(co) + ")", el ? make_then(th) : make(th) ];
+                        if (el) {
+                                out.push("else", make(el));
+                        }
+                        return add_spaces(out);
+                },
+                "for": function(init, cond, step, block) {
+                        var out = [ "for" ];
+                        init = (init != null ? make(init) : "").replace(/;*\s*$/, ";" + space);
+                        cond = (cond != null ? make(cond) : "").replace(/;*\s*$/, ";" + space);
+                        step = (step != null ? make(step) : "").replace(/;*\s*$/, "");
+                        var args = init + cond + step;
+                        if (args == "; ; ") args = ";;";
+                        out.push("(" + args + ")", make(block));
+                        return add_spaces(out);
+                },
+                "for-in": function(vvar, key, hash, block) {
+                        return add_spaces([ "for", "(" +
+                                            (vvar ? make(vvar).replace(/;+$/, "") : make(key)),
+                                            "in",
+                                            make(hash) + ")", make(block) ]);
+                },
+                "while": function(condition, block) {
+                        return add_spaces([ "while", "(" + make(condition) + ")", make(block) ]);
+                },
+                "do": function(condition, block) {
+                        return add_spaces([ "do", make(block), "while", "(" + make(condition) + ")" ]) + ";";
+                },
+                "return": function(expr) {
+                        var out = [ "return" ];
+                        if (expr != null) out.push(make(expr));
+                        return add_spaces(out) + ";";
+                },
+                "binary": function(operator, lvalue, rvalue) {
+                        var left = make(lvalue), right = make(rvalue);
+                        // XXX: I'm pretty sure other cases will bite here.
+                        //      we need to be smarter.
+                        //      adding parens all the time is the safest bet.
+                        if (member(lvalue[0], [ "assign", "conditional", "seq" ]) ||
+                            lvalue[0] == "binary" && PRECEDENCE[operator] > PRECEDENCE[lvalue[1]] ||
+                            lvalue[0] == "function" && needs_parens(this)) {
+                                left = "(" + left + ")";
+                        }
+                        if (member(rvalue[0], [ "assign", "conditional", "seq" ]) ||
+                            rvalue[0] == "binary" && PRECEDENCE[operator] >= PRECEDENCE[rvalue[1]] &&
+                            !(rvalue[1] == operator && member(operator, [ "&&", "||", "*" ]))) {
+                                right = "(" + right + ")";
+                        }
+                        else if (!beautify && options.inline_script && (operator == "<" || operator == "<<")
+                                 && rvalue[0] == "regexp" && /^script/i.test(rvalue[1])) {
+                                right = " " + right;
+                        }
+                        return add_spaces([ left, operator, right ]);
+                },
+                "unary-prefix": function(operator, expr) {
+                        var val = make(expr);
+                        if (!(expr[0] == "num" || (expr[0] == "unary-prefix" && !HOP(OPERATORS, operator + expr[1])) || !needs_parens(expr)))
+                                val = "(" + val + ")";
+                        return operator + (jsp.is_alphanumeric_char(operator.charAt(0)) ? " " : "") + val;
+                },
+                "unary-postfix": function(operator, expr) {
+                        var val = make(expr);
+                        if (!(expr[0] == "num" || (expr[0] == "unary-postfix" && !HOP(OPERATORS, operator + expr[1])) || !needs_parens(expr)))
+                                val = "(" + val + ")";
+                        return val + operator;
+                },
+                "sub": function(expr, subscript) {
+                        var hash = make(expr);
+                        if (needs_parens(expr))
+                                hash = "(" + hash + ")";
+                        return hash + "[" + make(subscript) + "]";
+                },
+                "object": function(props) {
+                        var obj_needs_parens = needs_parens(this);
+                        if (props.length == 0)
+                                return obj_needs_parens ? "({})" : "{}";
+                        var out = "{" + newline + with_indent(function(){
+                                return MAP(props, function(p){
+                                        if (p.length == 3) {
+                                                // getter/setter.  The name is in p[0], the arg.list in p[1][2], the
+                                                // body in p[1][3] and type ("get" / "set") in p[2].
+                                                return indent(make_function(p[0], p[1][2], p[1][3], p[2], true));
+                                        }
+                                        var key = p[0], val = parenthesize(p[1], "seq");
+                                        if (options.quote_keys) {
+                                                key = encode_string(key);
+                                        } else if ((typeof key == "number" || !beautify && +key + "" == key)
+                                                   && parseFloat(key) >= 0) {
+                                                key = make_num(+key);
+                                        } else if (!is_identifier(key)) {
+                                                key = encode_string(key);
+                                        }
+                                        return indent(add_spaces(beautify && options.space_colon
+                                                                 ? [ key, ":", val ]
+                                                                 : [ key + ":", val ]));
+                                }).join("," + newline);
+                        }) + newline + indent("}");
+                        return obj_needs_parens ? "(" + out + ")" : out;
+                },
+                "regexp": function(rx, mods) {
+                        if (options.ascii_only) rx = to_ascii(rx);
+                        return "/" + rx + "/" + mods;
+                },
+                "array": function(elements) {
+                        if (elements.length == 0) return "[]";
+                        return add_spaces([ "[", add_commas(MAP(elements, function(el, i){
+                                if (!beautify && el[0] == "atom" && el[1] == "undefined") return i === elements.length - 1 ? "," : "";
+                                return parenthesize(el, "seq");
+                        })), "]" ]);
+                },
+                "stat": function(stmt) {
+                        return stmt != null
+                                ? make(stmt).replace(/;*\s*$/, ";")
+                                : ";";
+                },
+                "seq": function() {
+                        return add_commas(MAP(slice(arguments), make));
+                },
+                "label": function(name, block) {
+                        return add_spaces([ make_name(name), ":", make(block) ]);
+                },
+                "with": function(expr, block) {
+                        return add_spaces([ "with", "(" + make(expr) + ")", make(block) ]);
+                },
+                "atom": function(name) {
+                        return make_name(name);
+                },
+                "directive": function(dir) {
+                        return make_string(dir) + ";";
+                }
+        }, function(){ return make(ast) });
+
+        // The squeezer replaces "block"-s that contain only a single
+        // statement with the statement itself; technically, the AST
+        // is correct, but this can create problems when we output an
+        // IF having an ELSE clause where the THEN clause ends in an
+        // IF *without* an ELSE block (then the outer ELSE would refer
+        // to the inner IF).  This function checks for this case and
+        // adds the block brackets if needed.
+        function make_then(th) {
+                if (th == null) return ";";
+                if (th[0] == "do") {
+                        // https://github.com/mishoo/UglifyJS/issues/#issue/57
+                        // IE croaks with "syntax error" on code like this:
+                        //     if (foo) do ... while(cond); else ...
+                        // we need block brackets around do/while
+                        return make_block([ th ]);
+                }
+                var b = th;
+                while (true) {
+                        var type = b[0];
+                        if (type == "if") {
+                                if (!b[3])
+                                        // no else, we must add the block
+                                        return make([ "block", [ th ]]);
+                                b = b[3];
+                        }
+                        else if (type == "while" || type == "do") b = b[2];
+                        else if (type == "for" || type == "for-in") b = b[4];
+                        else break;
+                }
+                return make(th);
+        };
+
+        function make_function(name, args, body, keyword, no_parens) {
+                var out = keyword || "function";
+                if (name) {
+                        out += " " + make_name(name);
+                }
+                out += "(" + add_commas(MAP(args, make_name)) + ")";
+                out = add_spaces([ out, make_block(body) ]);
+                return (!no_parens && needs_parens(this)) ? "(" + out + ")" : out;
+        };
+
+        function must_has_semicolon(node) {
+                switch (node[0]) {
+                    case "with":
+                    case "while":
+                        return empty(node[2]) || must_has_semicolon(node[2]);
+                    case "for":
+                    case "for-in":
+                        return empty(node[4]) || must_has_semicolon(node[4]);
+                    case "if":
+                        if (empty(node[2]) && !node[3]) return true; // `if' with empty `then' and no `else'
+                        if (node[3]) {
+                                if (empty(node[3])) return true; // `else' present but empty
+                                return must_has_semicolon(node[3]); // dive into the `else' branch
+                        }
+                        return must_has_semicolon(node[2]); // dive into the `then' branch
+                    case "directive":
+                        return true;
+                }
+        };
+
+        function make_block_statements(statements, noindent) {
+                for (var a = [], last = statements.length - 1, i = 0; i <= last; ++i) {
+                        var stat = statements[i];
+                        var code = make(stat);
+                        if (code != ";") {
+                                if (!beautify && i == last && !must_has_semicolon(stat)) {
+                                        code = code.replace(/;+\s*$/, "");
+                                }
+                                a.push(code);
+                        }
+                }
+                return noindent ? a : MAP(a, indent);
+        };
+
+        function make_switch_block(body) {
+                var n = body.length;
+                if (n == 0) return "{}";
+                return "{" + newline + MAP(body, function(branch, i){
+                        var has_body = branch[1].length > 0, code = with_indent(function(){
+                                return indent(branch[0]
+                                              ? add_spaces([ "case", make(branch[0]) + ":" ])
+                                              : "default:");
+                        }, 0.5) + (has_body ? newline + with_indent(function(){
+                                return make_block_statements(branch[1]).join(newline);
+                        }) : "");
+                        if (!beautify && has_body && i < n - 1)
+                                code += ";";
+                        return code;
+                }).join(newline) + newline + indent("}");
+        };
+
+        function make_block(statements) {
+                if (!statements) return ";";
+                if (statements.length == 0) return "{}";
+                return "{" + newline + with_indent(function(){
+                        return make_block_statements(statements).join(newline);
+                }) + newline + indent("}");
+        };
+
+        function make_1vardef(def) {
+                var name = def[0], val = def[1];
+                if (val != null)
+                        name = add_spaces([ make_name(name), "=", parenthesize(val, "seq") ]);
+                return name;
+        };
+
+};
+
+function split_lines(code, max_line_length) {
+        var splits = [ 0 ];
+        jsp.parse(function(){
+                var next_token = jsp.tokenizer(code);
+                var last_split = 0;
+                var prev_token;
+                function current_length(tok) {
+                        return tok.pos - last_split;
+                };
+                function split_here(tok) {
+                        last_split = tok.pos;
+                        splits.push(last_split);
+                };
+                function custom(){
+                        var tok = next_token.apply(this, arguments);
+                        out: {
+                                if (prev_token) {
+                                        if (prev_token.type == "keyword") break out;
+                                }
+                                if (current_length(tok) > max_line_length) {
+                                        switch (tok.type) {
+                                            case "keyword":
+                                            case "atom":
+                                            case "name":
+                                            case "punc":
+                                                split_here(tok);
+                                                break out;
+                                        }
+                                }
+                        }
+                        prev_token = tok;
+                        return tok;
+                };
+                custom.context = function() {
+                        return next_token.context.apply(this, arguments);
+                };
+                return custom;
+        }());
+        return splits.map(function(pos, i){
+                return code.substring(pos, splits[i + 1] || code.length);
+        }).join("\n");
+};
+
+/* -----[ Utilities ]----- */
+
+function repeat_string(str, i) {
+        if (i <= 0) return "";
+        if (i == 1) return str;
+        var d = repeat_string(str, i >> 1);
+        d += d;
+        if (i & 1) d += str;
+        return d;
+};
+
+function defaults(args, defs) {
+        var ret = {};
+        if (args === true)
+                args = {};
+        for (var i in defs) if (HOP(defs, i)) {
+                ret[i] = (args && HOP(args, i)) ? args[i] : defs[i];
+        }
+        return ret;
+};
+
+function is_identifier(name) {
+        return /^[a-z_$][a-z0-9_$]*$/i.test(name)
+                && name != "this"
+                && !HOP(jsp.KEYWORDS_ATOM, name)
+                && !HOP(jsp.RESERVED_WORDS, name)
+                && !HOP(jsp.KEYWORDS, name);
+};
+
+function HOP(obj, prop) {
+        return Object.prototype.hasOwnProperty.call(obj, prop);
+};
+
+// some utilities
+
+var MAP;
+
+(function(){
+        MAP = function(a, f, o) {
+                var ret = [], top = [], i;
+                function doit() {
+                        var val = f.call(o, a[i], i);
+                        if (val instanceof AtTop) {
+                                val = val.v;
+                                if (val instanceof Splice) {
+                                        top.push.apply(top, val.v);
+                                } else {
+                                        top.push(val);
+                                }
+                        }
+                        else if (val != skip) {
+                                if (val instanceof Splice) {
+                                        ret.push.apply(ret, val.v);
+                                } else {
+                                        ret.push(val);
+                                }
+                        }
+                };
+                if (a instanceof Array) for (i = 0; i < a.length; ++i) doit();
+                else for (i in a) if (HOP(a, i)) doit();
+                return top.concat(ret);
+        };
+        MAP.at_top = function(val) { return new AtTop(val) };
+        MAP.splice = function(val) { return new Splice(val) };
+        var skip = MAP.skip = {};
+        function AtTop(val) { this.v = val };
+        function Splice(val) { this.v = val };
+})();
+
+/* -----[ Exports ]----- */
+
+exports.ast_walker = ast_walker;
+exports.ast_mangle = ast_mangle;
+exports.ast_squeeze = ast_squeeze;
+exports.ast_lift_variables = ast_lift_variables;
+exports.gen_code = gen_code;
+exports.ast_add_scope = ast_add_scope;
+exports.set_logger = function(logger) { warn = logger };
+exports.make_string = make_string;
+exports.split_lines = split_lines;
+exports.MAP = MAP;
+
+// keep this last!
+exports.ast_squeeze_more = require("./squeeze-more").ast_squeeze_more;
+
+// Local variables:
+// js-indent-level: 8
+// End:
+});
+define('uglifyjs/index', ["require", "exports", "module", "./parse-js", "./process", "./consolidator"], function(require, exports, module) {
+//convienence function(src, [options]);
+function uglify(orig_code, options){
+  options || (options = {});
+  var jsp = uglify.parser;
+  var pro = uglify.uglify;
+
+  var ast = jsp.parse(orig_code, options.strict_semicolons); // parse code and get the initial AST
+  ast = pro.ast_mangle(ast, options.mangle_options); // get a new AST with mangled names
+  ast = pro.ast_squeeze(ast, options.squeeze_options); // get an AST with compression optimizations
+  var final_code = pro.gen_code(ast, options.gen_options); // compressed code here
+  return final_code;
+};
+
+uglify.parser = require("./parse-js");
+uglify.uglify = require("./process");
+uglify.consolidator = require("./consolidator");
+
+module.exports = uglify
+});/**
+ * @license Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+
+/*jslint plusplus: true */
+/*global define: false */
+
+define('parse', ['./esprima'], function (esprima) {
+    'use strict';
+
+    var ostring = Object.prototype.toString,
+        //This string is saved off because JSLint complains
+        //about obj.arguments use, as 'reserved word'
+        argPropName = 'arguments';
+
+    //From an esprima example for traversing its ast.
+    function traverse(object, visitor) {
+        var key, child;
+
+        if (!object) {
+            return;
+        }
+
+        if (visitor.call(null, object) === false) {
+            return false;
+        }
+        for (key in object) {
+            if (object.hasOwnProperty(key)) {
+                child = object[key];
+                if (typeof child === 'object' && child !== null) {
+                    if (traverse(child, visitor) === false) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Pulls out dependencies from an array literal with just string members.
+     * If string literals, will just return those string values in an array,
+     * skipping other items in the array.
+     *
+     * @param {Node} node an AST node.
+     *
+     * @returns {Array} an array of strings.
+     * If null is returned, then it means the input node was not a valid
+     * dependency.
+     */
+    function getValidDeps(node) {
+        if (!node || node.type !== 'ArrayExpression' || !node.elements) {
+            return;
+        }
+
+        var deps = [];
+
+        node.elements.some(function (elem) {
+            if (elem.type === 'Literal') {
+                deps.push(elem.value);
+            }
+        });
+
+        return deps.length ? deps : undefined;
+    }
+
+    /**
+     * Main parse function. Returns a string of any valid require or
+     * define/require.def calls as part of one JavaScript source string.
+     * @param {String} moduleName the module name that represents this file.
+     * It is used to create a default define if there is not one already for the
+     * file. This allows properly tracing dependencies for builds. Otherwise, if
+     * the file just has a require() call, the file dependencies will not be
+     * properly reflected: the file will come before its dependencies.
+     * @param {String} moduleName
+     * @param {String} fileName
+     * @param {String} fileContents
+     * @param {Object} options optional options. insertNeedsDefine: true will
+     * add calls to require.needsDefine() if appropriate.
+     * @returns {String} JS source string or null, if no require or
+     * define/require.def calls are found.
+     */
+    function parse(moduleName, fileName, fileContents, options) {
+        options = options || {};
+
+        //Set up source input
+        var i, moduleCall, depString,
+            moduleDeps = [],
+            result = '',
+            moduleList = [],
+            needsDefine = true,
+            astRoot = esprima.parse(fileContents);
+
+        parse.recurse(astRoot, function (callName, config, name, deps) {
+            if (!deps) {
+                deps = [];
+            }
+
+            if (callName === 'define' && (!name || name === moduleName)) {
+                needsDefine = false;
+            }
+
+            if (!name) {
+                //If there is no module name, the dependencies are for
+                //this file/default module name.
+                moduleDeps = moduleDeps.concat(deps);
+            } else {
+                moduleList.push({
+                    name: name,
+                    deps: deps
+                });
+            }
+
+            //If define was found, no need to dive deeper, unless
+            //the config explicitly wants to dig deeper.
+            return !!options.findNestedDependencies;
+        }, options);
+
+        if (options.insertNeedsDefine && needsDefine) {
+            result += 'require.needsDefine("' + moduleName + '");';
+        }
+
+        if (moduleDeps.length || moduleList.length) {
+            for (i = 0; i < moduleList.length; i++) {
+                moduleCall = moduleList[i];
+                if (result) {
+                    result += '\n';
+                }
+
+                //If this is the main module for this file, combine any
+                //"anonymous" dependencies (could come from a nested require
+                //call) with this module.
+                if (moduleCall.name === moduleName) {
+                    moduleCall.deps = moduleCall.deps.concat(moduleDeps);
+                    moduleDeps = [];
+                }
+
+                depString = moduleCall.deps.length ? '["' +
+                            moduleCall.deps.join('","') + '"]' : '[]';
+                result += 'define("' + moduleCall.name + '",' +
+                          depString + ');';
+            }
+            if (moduleDeps.length) {
+                if (result) {
+                    result += '\n';
+                }
+                depString = moduleDeps.length ? '["' + moduleDeps.join('","') +
+                            '"]' : '[]';
+                result += 'define("' + moduleName + '",' + depString + ');';
+            }
+        }
+
+        return result || null;
+    }
+
+    /**
+     * Handles parsing a file recursively for require calls.
+     * @param {Array} parentNode the AST node to start with.
+     * @param {Function} onMatch function to call on a parse match.
+     * @param {Object} [options] This is normally the build config options if
+     * it is passed.
+     */
+    parse.recurse = function (object, onMatch, options) {
+        //Like traverse, but skips if branches that would not be processed
+        //after has application that results in tests of true or false boolean
+        //literal values.
+        var key, child,
+            hasHas = options && options.has;
+
+        if (!object) {
+            return;
+        }
+
+        //If has replacement has resulted in if(true){} or if(false){}, take
+        //the appropriate branch and skip the other one.
+        if (hasHas && object.type === 'IfStatement' && object.test.type &&
+                object.test.type === 'Literal') {
+            if (object.test.value) {
+                //Take the if branch
+                this.recurse(object.consequent, onMatch, options);
+            } else {
+                //Take the else branch
+                this.recurse(object.alternate, onMatch, options);
+            }
+        } else {
+            if (this.parseNode(object, onMatch) === false) {
+                return;
+            }
+            for (key in object) {
+                if (object.hasOwnProperty(key)) {
+                    child = object[key];
+                    if (typeof child === 'object' && child !== null) {
+                        this.recurse(child, onMatch, options);
+                    }
+                }
+            }
+        }
+    };
+
+    /**
+     * Determines if the file defines the require/define module API.
+     * Specifically, it looks for the `define.amd = ` expression.
+     * @param {String} fileName
+     * @param {String} fileContents
+     * @returns {Boolean}
+     */
+    parse.definesRequire = function (fileName, fileContents) {
+        var found = false;
+
+        traverse(esprima.parse(fileContents), function (node) {
+            if (parse.hasDefineAmd(node)) {
+                found = true;
+
+                //Stop traversal
+                return false;
+            }
+        });
+
+        return found;
+    };
+
+    /**
+     * Finds require("") calls inside a CommonJS anonymous module wrapped in a
+     * define(function(require, exports, module){}) wrapper. These dependencies
+     * will be added to a modified define() call that lists the dependencies
+     * on the outside of the function.
+     * @param {String} fileName
+     * @param {String} fileContents
+     * @returns {Array} an array of module names that are dependencies. Always
+     * returns an array, but could be of length zero.
+     */
+    parse.getAnonDeps = function (fileName, fileContents) {
+        var astRoot = esprima.parse(fileContents),
+            defFunc = this.findAnonDefineFactory(astRoot);
+
+        return parse.getAnonDepsFromNode(defFunc);
+    };
+
+    /**
+     * Finds require("") calls inside a CommonJS anonymous module wrapped
+     * in a define function, given an AST node for the definition function.
+     * @param {Node} node the AST node for the definition function.
+     * @returns {Array} and array of dependency names. Can be of zero length.
+     */
+    parse.getAnonDepsFromNode = function (node) {
+        var deps = [],
+            funcArgLength;
+
+        if (node) {
+            this.findRequireDepNames(node, deps);
+
+            //If no deps, still add the standard CommonJS require, exports,
+            //module, in that order, to the deps, but only if specified as
+            //function args. In particular, if exports is used, it is favored
+            //over the return value of the function, so only add it if asked.
+            funcArgLength = node.params && node.params.length;
+            if (funcArgLength) {
+                deps = (funcArgLength > 1 ? ["require", "exports", "module"] :
+                        ["require"]).concat(deps);
+            }
+        }
+        return deps;
+    };
+
+    /**
+     * Finds the function in define(function (require, exports, module){});
+     * @param {Array} node
+     * @returns {Boolean}
+     */
+    parse.findAnonDefineFactory = function (node) {
+        var match;
+
+        traverse(node, function (node) {
+            var arg0, arg1;
+
+            if (node && node.type === 'CallExpression' &&
+                    node.callee && node.callee.type === 'Identifier' &&
+                    node.callee.name === 'define' && node[argPropName]) {
+
+                //Just the factory function passed to define
+                arg0 = node[argPropName][0];
+                if (arg0 && arg0.type === 'FunctionExpression') {
+                    match = arg0;
+                    return false;
+                }
+
+                //A string literal module ID followed by the factory function.
+                arg1 = node[argPropName][1];
+                if (arg0.type === 'Literal' &&
+                        arg1 && arg1.type === 'FunctionExpression') {
+                    match = arg1;
+                    return false;
+                }
+            }
+        });
+
+        return match;
+    };
+
+    /**
+     * Finds any config that is passed to requirejs. That includes calls to
+     * require/requirejs.config(), as well as require({}, ...) and
+     * requirejs({}, ...)
+     * @param {String} fileName
+     * @param {String} fileContents
+     *
+     * @returns {Object} a config object. Will be null if no config.
+     * Can throw an error if the config in the file cannot be evaluated in
+     * a build context to valid JavaScript.
+     */
+    parse.findConfig = function (fileName, fileContents) {
+        /*jslint evil: true */
+        var jsConfig,
+            foundConfig = null,
+            astRoot = esprima.parse(fileContents, {
+                range: true
+            });
+
+        traverse(astRoot, function (node) {
+            var arg,
+                c = node && node.callee,
+                requireType = parse.hasRequire(node);
+
+            if (requireType && (requireType === 'require' ||
+                    requireType === 'requirejs' ||
+                    requireType === 'requireConfig' ||
+                    requireType === 'requirejsConfig')) {
+
+                arg = node[argPropName] && node[argPropName][0];
+
+                if (arg && arg.type === 'ObjectExpression') {
+                    jsConfig = parse.nodeToString(fileContents, arg);
+                    foundConfig = eval('(' + jsConfig + ')');
+                    return false;
+                }
+            }
+
+
+        });
+
+        return foundConfig;
+    };
+
+    /**
+     * Finds all dependencies specified in dependency arrays and inside
+     * simplified commonjs wrappers.
+     * @param {String} fileName
+     * @param {String} fileContents
+     *
+     * @returns {Array} an array of dependency strings. The dependencies
+     * have not been normalized, they may be relative IDs.
+     */
+    parse.findDependencies = function (fileName, fileContents, options) {
+        var dependencies = [],
+            astRoot = esprima.parse(fileContents);
+
+        parse.recurse(astRoot, function (callName, config, name, deps) {
+            if (deps) {
+                dependencies = dependencies.concat(deps);
+            }
+        }, options);
+
+        return dependencies;
+    };
+
+    /**
+     * Finds only CJS dependencies, ones that are the form
+     * require('stringLiteral')
+     */
+    parse.findCjsDependencies = function (fileName, fileContents, options) {
+        var dependencies = [];
+
+        traverse(esprima.parse(fileContents), function (node) {
+            var arg;
+
+            if (node && node.type === 'CallExpression' && node.callee &&
+                    node.callee.type === 'Identifier' &&
+                    node.callee.name === 'require' && node[argPropName] &&
+                    node[argPropName].length === 1) {
+                arg = node[argPropName][0];
+                if (arg.type === 'Literal') {
+                    dependencies.push(arg.value);
+                }
+            }
+        });
+
+        return dependencies;
+    };
+
+    //function define() {}
+    parse.hasDefDefine = function (node) {
+        return node.type === 'FunctionDeclaration' && node.id &&
+                    node.id.type === 'Identifier' && node.id.name === 'define';
+    };
+
+    //define.amd = ...
+    parse.hasDefineAmd = function (node) {
+        return node && node.type === 'AssignmentExpression' &&
+            node.left && node.left.type === 'MemberExpression' &&
+            node.left.object && node.left.object.name === 'define' &&
+            node.left.property && node.left.property.name === 'amd';
+    };
+
+    //require(), requirejs(), require.config() and requirejs.config()
+    parse.hasRequire = function (node) {
+        var callName,
+            c = node && node.callee;
+
+        if (node && node.type === 'CallExpression' && c) {
+            if (c.type === 'Identifier' &&
+                    (c.name === 'require' ||
+                    c.name === 'requirejs')) {
+                //A require/requirejs({}, ...) call
+                callName = c.name;
+            } else if (c.type === 'MemberExpression' &&
+                    c.object &&
+                    c.object.type === 'Identifier' &&
+                    (c.object.name === 'require' ||
+                        c.object.name === 'requirejs') &&
+                    c.property && c.property.name === 'config') {
+                // require/requirejs.config({}) call
+                callName = c.object.name + 'Config';
+            }
+        }
+
+        return callName;
+    };
+
+    //define()
+    parse.hasDefine = function (node) {
+        return node && node.type === 'CallExpression' && node.callee &&
+            node.callee.type === 'Identifier' &&
+            node.callee.name === 'define';
+    };
+
+    /**
+     * Determines if define(), require({}|[]) or requirejs was called in the
+     * file. Also finds out if define() is declared and if define.amd is called.
+     */
+    parse.usesAmdOrRequireJs = function (fileName, fileContents, options) {
+        var uses;
+
+        traverse(esprima.parse(fileContents), function (node) {
+            var type, callName, arg;
+
+            if (parse.hasDefDefine(node)) {
+                //function define() {}
+                type = 'declaresDefine';
+            } else if (parse.hasDefineAmd(node)) {
+                type = 'defineAmd';
+            } else {
+                callName = parse.hasRequire(node);
+                if (callName) {
+                    arg = node[argPropName] && node[argPropName][0];
+                    if (arg && (arg.type === 'ObjectExpression' ||
+                            arg.type === 'ArrayExpression')) {
+                        type = callName;
+                    }
+                } else if (parse.hasDefine(node)) {
+                    type = 'define';
+                }
+            }
+
+            if (type) {
+                if (!uses) {
+                    uses = {};
+                }
+                uses[type] = true;
+            }
+        });
+
+        return uses;
+    };
+
+    /**
+     * Determines if require(''), exports.x =, module.exports =,
+     * __dirname, __filename are used. So, not strictly traditional CommonJS,
+     * also checks for Node variants.
+     */
+    parse.usesCommonJs = function (fileName, fileContents, options) {
+        var uses = null,
+            assignsExports = false;
+
+
+        traverse(esprima.parse(fileContents), function (node) {
+            var type,
+                exp = node.expression;
+
+            if (node.type === 'Identifier' &&
+                    (node.name === '__dirname' || node.name === '__filename')) {
+                type = node.name.substring(2);
+            } else if (node.type === 'VariableDeclarator' && node.id &&
+                    node.id.type === 'Identifier' &&
+                        node.id.name === 'exports') {
+                //Hmm, a variable assignment for exports, so does not use cjs
+                //exports.
+                type = 'varExports';
+            } else if (exp && exp.type === 'AssignmentExpression' && exp.left &&
+                    exp.left.type === 'MemberExpression' && exp.left.object) {
+                if (exp.left.object.name === 'module' && exp.left.property &&
+                        exp.left.property.name === 'exports') {
+                    type = 'moduleExports';
+                } else if (exp.left.object.name === 'exports' &&
+                        exp.left.property) {
+                    type = 'exports';
+                }
+
+            } else if (node && node.type === 'CallExpression' && node.callee &&
+                    node.callee.type === 'Identifier' &&
+                    node.callee.name === 'require' && node[argPropName] &&
+                    node[argPropName].length === 1 &&
+                    node[argPropName][0].type === 'Literal') {
+                type = 'require';
+            }
+
+            if (type) {
+                if (type === 'varExports') {
+                    assignsExports = true;
+                } else if (type !== 'exports' || !assignsExports) {
+                    if (!uses) {
+                        uses = {};
+                    }
+                    uses[type] = true;
+                }
+            }
+        });
+
+        return uses;
+    };
+
+
+    parse.findRequireDepNames = function (node, deps) {
+        var moduleName, i, n, call, args;
+
+        traverse(node, function (node) {
+            var arg;
+
+            if (node && node.type === 'CallExpression' && node.callee &&
+                    node.callee.type === 'Identifier' &&
+                    node.callee.name === 'require' &&
+                    node[argPropName] && node[argPropName].length === 1) {
+
+                arg = node[argPropName][0];
+                if (arg.type === 'Literal') {
+                    deps.push(arg.value);
+                }
+            }
+        });
+    };
+
+    /**
+     * Determines if a specific node is a valid require or define/require.def
+     * call.
+     * @param {Array} node
+     * @param {Function} onMatch a function to call when a match is found.
+     * It is passed the match name, and the config, name, deps possible args.
+     * The config, name and deps args are not normalized.
+     *
+     * @returns {String} a JS source string with the valid require/define call.
+     * Otherwise null.
+     */
+    parse.parseNode = function (node, onMatch) {
+        var name, deps, cjsDeps, arg, factory,
+            args = node && node[argPropName],
+            callName = parse.hasRequire(node);
+
+        if (callName === 'require' || callName === 'requirejs') {
+            //A plain require/requirejs call
+            arg = node[argPropName] && node[argPropName][0];
+            if (arg.type !== 'ArrayExpression') {
+                if (arg.type === 'ObjectExpression') {
+                    //A config call, try the second arg.
+                    arg = node[argPropName][1];
+                }
+            }
+
+            deps = getValidDeps(arg);
+            if (!deps) {
+                return;
+            }
+
+            return onMatch("require", null, null, deps);
+        } else if (parse.hasDefine(node) && args && args.length) {
+            name = args[0];
+            deps = args[1];
+            factory = args[2];
+
+            if (name.type === 'ArrayExpression') {
+                //No name, adjust args
+                factory = deps;
+                deps = name;
+                name = null;
+            } else if (name.type === 'FunctionExpression') {
+                //Just the factory, no name or deps
+                factory = name;
+                name = deps = null;
+            } else if (name.type !== 'Literal') {
+                 //An object literal, just null out
+                name = deps = factory = null;
+            }
+
+            if (name && name.type === 'Literal' && deps) {
+                if (deps.type === 'FunctionExpression') {
+                    //deps is the factory
+                    factory = deps;
+                    deps = null;
+                } else if (deps.type === 'ObjectExpression') {
+                    //deps is object literal, null out
+                    deps = factory = null;
+                }
+            }
+
+            if (deps && deps.type === 'ArrayExpression') {
+                deps = getValidDeps(deps);
+            } else if (factory && factory.type === 'FunctionExpression') {
+                //If no deps and a factory function, could be a commonjs sugar
+                //wrapper, scan the function for dependencies.
+                cjsDeps = parse.getAnonDepsFromNode(factory);
+                if (cjsDeps.length) {
+                    deps = cjsDeps;
+                }
+            } else if (deps || factory) {
+                //Does not match the shape of an AMD call.
+                return;
+            }
+
+            //Just save off the name as a string instead of an AST object.
+            if (name && name.type === 'Literal') {
+                name = name.value;
+            }
+
+            return onMatch("define", null, name, deps);
+        }
+    };
+
+    /**
+     * Converts an AST node into a JS source string by extracting
+     * the node's location from the given contents string. Assumes
+     * esprima.parse() with ranges was done.
+     * @param {String} contents
+     * @param {Object} node
+     * @returns {String} a JS source string.
+     */
+    parse.nodeToString = function (contents, node) {
+        var range = node.range;
+        return contents.substring(range[0], range[1]);
+    };
+
+    /**
+     * Extracts license comments from JS text.
+     * @param {String} fileName
+     * @param {String} contents
+     * @returns {String} a string of license comments.
+     */
+    parse.getLicenseComments = function (fileName, contents) {
+        var commentNode, refNode, subNode, value, i, j,
+            ast = esprima.parse(contents, {
+                comment: true
+            }),
+            result = '',
+            existsMap = {},
+            lineEnd = contents.indexOf('\r') === -1 ? '\n' : '\r\n';
+
+        if (ast.comments) {
+            for (i = 0; i < ast.comments.length; i++) {
+                commentNode = ast.comments[i];
+
+                if (commentNode.type === 'Line') {
+                    value = '//' + commentNode.value + lineEnd;
+                    refNode = commentNode;
+
+                    if (i + 1 >= ast.comments.length) {
+                        value += lineEnd;
+                    } else {
+                        //Look for immediately adjacent single line comments
+                        //since it could from a multiple line comment made out
+                        //of single line comments. Like this comment.
+                        for (j = i + 1; j < ast.comments.length; j++) {
+                            subNode = ast.comments[j];
+                            if (subNode.type === 'Line' &&
+                                    subNode.range[0] === refNode.range[1]) {
+                                //Adjacent single line comment. Collect it.
+                                value += '//' + subNode.value + lineEnd;
+                                refNode = subNode;
+                            } else {
+                                //No more single line comment blocks. Break out
+                                //and continue outer looping.
+                                break;
+                            }
+                        }
+                        value += lineEnd;
+                        i = j - 1;
+                    }
+                } else {
+                    value = '/*' + commentNode.value + '*/' + lineEnd + lineEnd;
+                }
+
+                if (!existsMap[value] && (value.indexOf('license') !== -1 ||
+                        (commentNode.type === 'Block' &&
+                            value.indexOf('/*!') === 0) ||
+                        value.indexOf('opyright') !== -1 ||
+                        value.indexOf('(c)') !== -1)) {
+
+                    result += value;
+                    existsMap[value] = true;
+                }
+
+            }
+        }
+
+        return result;
+    };
+
+    return parse;
+});
+/**
+ * @license Copyright (c) 2012, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+
+/*jslint */
+/*global define */
+
+define('transform', [ './esprima', './parse', 'logger', 'lang'], function (esprima, parse, logger, lang) {
+    'use strict';
+    var transform;
+
+    return (transform = {
+        toTransport: function (namespace, moduleName, path, contents, onFound, options) {
+            options = options || {};
+
+            var tokens, foundAnon, deps, lastRange, parenCount, inDefine,
+                scanCount = 0,
+                scanReset = false,
+                defineRanges = [],
+                contentInsertion = '',
+                depString = '';
+
+            try {
+                tokens = esprima.parse(contents, {
+                    tokens: true,
+                    range: true
+                }).tokens;
+            } catch (e) {
+                logger.trace('toTransport skipping ' + path + ': ' +
+                             e.toString());
+                return contents;
+            }
+
+            //Find the define calls and their position in the files.
+            tokens.forEach(function (token, i) {
+                var prev, prev2, next, next2, next3, next4, next5,
+                    needsId, depAction, nameCommaRange, foundId,
+                    sourceUrlData, range,
+                    namespaceExists = false;
+
+                if (inDefine && token.type === 'Punctuator') {
+                    //Looking for the end of the define call.
+                    if (token.value === '(') {
+                        parenCount += 1;
+                    } else if (token.value === ')') {
+                        parenCount -= 1;
+                    }
+
+                    if (parenCount === 0) {
+                        inDefine = false;
+
+                        //Found the end of the define call. Hold onto
+                        //it.
+                        lastRange = defineRanges.length &&
+                            defineRanges[defineRanges.length - 1];
+                        if (lastRange) {
+                            lastRange.defineEndRange = token.range;
+                        }
+                    }
+                }
+
+                if (token.type === 'Identifier' && token.value === 'define') {
+                    //Possible match. Do not want something.define calls
+                    //though, and only defines follow by a paren
+                    prev = tokens[i - 1];
+                    next = tokens[i + 1];
+
+                    if (prev && prev.type === 'Punctuator' &&
+                            prev.value === '.') {
+                        //a define on a sub-object, not a top level
+                        //define() call. If the sub object is the
+                        //namespace, then it is ok.
+                        prev2 = tokens[i - 2];
+                        if (!prev2) {
+                            return;
+                        }
+
+                        //If the prev2 does not match namespace, then bail.
+                        if (!namespace || prev2.type !== 'Identifier' ||
+                                prev2.value !== namespace) {
+                            return;
+                        } else if (namespace) {
+                            namespaceExists = true;
+                        }
+                    }
+
+                    if (!next || next.type !== 'Punctuator' ||
+                            next.value !== '(') {
+                       //Not a define() function call. Bail.
+                        return;
+                    }
+
+                    next2 = tokens[i + 2];
+                    if (!next2) {
+                        return;
+                    }
+
+                    //Figure out if this needs a named define call.
+                    if (next2.type === 'Punctuator' && next2.value === '[') {
+                        //Dependency array
+                        needsId = true;
+                        depAction = 'skip';
+                    } else if (next2.type === 'Punctuator' &&
+                            next2.value === '{') {
+                        //Object literal
+                        needsId = true;
+                        depAction = 'skip';
+                    } else if (next2.type === 'Keyword' &&
+                               next2.value === 'function') {
+                        //function
+                        needsId = true;
+                        depAction = 'scan';
+                    } else if (next2.type === 'String') {
+                        //Named module
+                        needsId = false;
+
+                        //The value includes the quotes around the string,
+                        //so remove them.
+                        foundId = next2.value.substring(1,
+                                                        next2.value.length - 1);
+
+                        //assumed it does not need dependencies injected
+
+                        //If next argument is a function it means we need
+                        //dependency scanning.
+                        next3 = tokens[i + 3];
+                        next4 = tokens[i + 4];
+                        if (!next3 || !next4) {
+                            return;
+                        }
+
+                        if (next3.type === 'Punctuator' &&
+                                next3.value === ',' &&
+                                next4.type === 'Keyword' &&
+                                next4.value === 'function') {
+                            depAction = 'scan';
+                            nameCommaRange = next3.range;
+                        } else {
+                            depAction = 'skip';
+                        }
+                    } else if (next2.type === 'Identifier') {
+                        //May be the define(factory); type.
+                        next3 = tokens[i + 3];
+                        if (!next3) {
+                            return;
+                        }
+                        if (next3.type === 'Punctuator' &&
+                                next3.value === ')') {
+                            needsId = true;
+                            depAction = 'empty';
+                        } else {
+                            return;
+                        }
+                    } else if (next2.type === 'Numeric') {
+                        //May be the define(12345); type.
+                        next3 = tokens[i + 3];
+                        if (!next3) {
+                            return;
+                        }
+                        if (next3.type === 'Punctuator' &&
+                                next3.value === ')') {
+                            needsId = true;
+                            depAction = 'skip';
+                        } else {
+                            return;
+                        }
+                    } else if (next2.type === 'Punctuator' &&
+                               next2.value === '-') {
+                        //May be the define(-12345); type.
+                        next3 = tokens[i + 3];
+                        if (!next3) {
+                            return;
+                        }
+                        if (next3.type === 'Numeric') {
+                            next4 = tokens[i + 4];
+                            if (!next4) {
+                                return;
+                            }
+                            if (next4.type === 'Punctuator' &&
+                                    next4.value === ')') {
+                                needsId = true;
+                                depAction = 'skip';
+                            } else {
+                                return;
+                            }
+                        } else {
+                            return;
+                        }
+                    } else if (next2.type === 'Keyword' && next2.value === 'this') {
+                        //May be the define(this.key); type
+                        next3 = tokens[i + 3];
+                        next4 = tokens[i + 4];
+                        next5 = tokens[i + 5];
+                        if (!next3 || !next4 || !next5) {
+                            return;
+                        }
+
+                        if (next3.type === 'Punctuator' && next3.value === '.' &&
+                                next4.type === 'Identifier' &&
+                                next5.type === 'Punctuator' && next5.value === ')') {
+                            needsId = true;
+                            depAction = 'empty';
+                        } else {
+                            return;
+                        }
+                    } else {
+                        //Not a match, skip it.
+                        return;
+                    }
+
+                    //A valid define call. Need to find the end, start counting
+                    //parentheses.
+                    inDefine = true;
+                    parenCount = 0;
+
+                    range = {
+                        foundId: foundId,
+                        needsId: needsId,
+                        depAction: depAction,
+                        namespaceExists: namespaceExists,
+                        defineRange: token.range,
+                        parenRange: next.range,
+                        nameCommaRange: nameCommaRange,
+                        sourceUrlData: sourceUrlData
+                    };
+
+                    //Only transform ones that do not have IDs. If it has an
+                    //ID but no dependency array, assume it is something like
+                    //a phonegap implementation, that has its own internal
+                    //define that cannot handle dependency array constructs,
+                    //and if it is a named module, then it means it has been
+                    //set for transport form.
+                    if (range.needsId) {
+                        if (foundAnon) {
+                            throw new Error(path +
+                                ' has two many anonymous modules in it.');
+                        } else {
+                            foundAnon = range;
+                            defineRanges.push(range);
+                        }
+                    } else if (depAction === 'scan') {
+                        scanCount += 1;
+                        if (scanCount > 1) {
+                            //Just go back to an array that just has the
+                            //anon one, since this is an already optimized
+                            //file like the phonegap one.
+                            if (!scanReset) {
+                                defineRanges =  foundAnon ? [foundAnon] : [];
+                                scanReset = true;
+                            }
+                        } else {
+                            defineRanges.push(range);
+                        }
+                    }
+                }
+            });
+
+            if (!defineRanges.length) {
+                return contents;
+            }
+
+            //Reverse the matches, need to start from the bottom of
+            //the file to modify it, so that the ranges are still true
+            //further up.
+            defineRanges.reverse();
+
+            defineRanges.forEach(function (info) {
+                //Do the modifications "backwards", in other words, start with the
+                //one that is farthest down and work up, so that the ranges in the
+                //defineRanges still apply. So that means deps, id, then namespace.
+
+                if (info.needsId && moduleName) {
+                    contentInsertion += "'" + moduleName + "',";
+                }
+
+                if (info.depAction === 'scan') {
+                    deps = parse.getAnonDeps(path, contents.substring(info.defineRange[0], info.defineEndRange[1]));
+
+                    if (deps.length) {
+                        depString = '[' + deps.map(function (dep) {
+                            return "'" + dep + "'";
+                        }) + ']';
+                    } else {
+                        depString = '[]';
+                    }
+                    depString +=  ',';
+
+                    if (info.nameCommaRange) {
+                        //Already have a named module, need to insert the
+                        //dependencies after the name.
+                        contents = contents.substring(0, info.nameCommaRange[1]) +
+                                   depString +
+                                   contents.substring(info.nameCommaRange[1],
+                                                  contents.length);
+                    } else {
+                        contentInsertion +=  depString;
+                    }
+                } else if (info.depAction === 'empty') {
+                    contentInsertion += '[],';
+                }
+
+                if (contentInsertion) {
+                    contents = contents.substring(0, info.parenRange[1]) +
+                               contentInsertion +
+                               contents.substring(info.parenRange[1],
+                                                  contents.length);
+                }
+
+                //Do namespace last so that ui does not mess upthe parenRange
+                //used above.
+                if (namespace && !info.namespaceExists) {
+                    contents = contents.substring(0, info.defineRange[0]) +
+                               namespace + '.' +
+                               contents.substring(info.defineRange[0],
+                                                  contents.length);
+                }
+
+                //Notify any listener for the found info
+                if (onFound) {
+                    onFound(info);
+                }
+            });
+
+            if (options.useSourceUrl) {
+                contents = 'eval("' + lang.jsEscape(contents) +
+                    '\\n//@ sourceURL=' + (path.indexOf('/') === 0 ? '' : '/') +
+                    path +
+                    '");\n';
+            }
+
+            return contents;
+        }
+    });
+});/**
+ * @license Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+
+/*jslint regexp: true, plusplus: true  */
+/*global define: false */
+
+define('pragma', ['parse', 'logger'], function (parse, logger) {
+    'use strict';
+    function Temp() {}
+
+    function create(obj, mixin) {
+        Temp.prototype = obj;
+        var temp = new Temp(), prop;
+
+        //Avoid any extra memory hanging around
+        Temp.prototype = null;
+
+        if (mixin) {
+            for (prop in mixin) {
+                if (mixin.hasOwnProperty(prop) && !temp.hasOwnProperty(prop)) {
+                    temp[prop] = mixin[prop];
+                }
+            }
+        }
+
+        return temp; // Object
+    }
+
+    var pragma = {
+        conditionalRegExp: /(exclude|include)Start\s*\(\s*["'](\w+)["']\s*,(.*)\)/,
+        useStrictRegExp: /['"]use strict['"];/g,
+        hasRegExp: /has\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+        nsRegExp: /(^|[^\.])(requirejs|require|define)(\.config)?\s*\(/g,
+        nsWrapRegExp: /\/\*requirejs namespace: true \*\//,
+        apiDefRegExp: /var requirejs, require, define;/,
+        defineCheckRegExp: /typeof\s+define\s*===\s*["']function["']\s*&&\s*define\s*\.\s*amd/g,
+        defineTypeFirstCheckRegExp: /\s*["']function["']\s*===\s*typeof\s+define\s*&&\s*define\s*\.\s*amd/g,
+        defineJQueryRegExp: /typeof\s+define\s*===\s*["']function["']\s*&&\s*define\s*\.\s*amd\s*&&\s*define\s*\.\s*amd\s*\.\s*jQuery/g,
+        defineHasRegExp: /typeof\s+define\s*==(=)?\s*['"]function['"]\s*&&\s*typeof\s+define\.amd\s*==(=)?\s*['"]object['"]\s*&&\s*define\.amd/g,
+        defineTernaryRegExp: /typeof\s+define\s*===\s*['"]function["']\s*&&\s*define\s*\.\s*amd\s*\?\s*define/,
+        amdefineRegExp: /if\s*\(\s*typeof define\s*\!==\s*'function'\s*\)\s*\{\s*[^\{\}]+amdefine[^\{\}]+\}/g,
+
+        removeStrict: function (contents, config) {
+            return config.useStrict ? contents : contents.replace(pragma.useStrictRegExp, '');
+        },
+
+        namespace: function (fileContents, ns, onLifecycleName) {
+            if (ns) {
+                //Namespace require/define calls
+                fileContents = fileContents.replace(pragma.nsRegExp, '$1' + ns + '.$2$3(');
+
+                //Namespace define ternary use:
+                fileContents = fileContents.replace(pragma.defineTernaryRegExp,
+                                                    "typeof " + ns + ".define === 'function' && " + ns + ".define.amd ? " + ns + ".define");
+
+                //Namespace define jquery use:
+                fileContents = fileContents.replace(pragma.defineJQueryRegExp,
+                                                    "typeof " + ns + ".define === 'function' && " + ns + ".define.amd && " + ns + ".define.amd.jQuery");
+
+                //Namespace has.js define use:
+                fileContents = fileContents.replace(pragma.defineHasRegExp,
+                                                    "typeof " + ns + ".define === 'function' && typeof " + ns + ".define.amd === 'object' && " + ns + ".define.amd");
+
+                //Namespace define checks.
+                //Do these ones last, since they are a subset of the more specific
+                //checks above.
+                fileContents = fileContents.replace(pragma.defineCheckRegExp,
+                                                    "typeof " + ns + ".define === 'function' && " + ns + ".define.amd");
+                fileContents = fileContents.replace(pragma.defineTypeFirstCheckRegExp,
+                                                    "'function' === typeof " + ns + ".define && " + ns + ".define.amd");
+
+                //Check for require.js with the require/define definitions
+                if (pragma.apiDefRegExp.test(fileContents) &&
+                    fileContents.indexOf("if (typeof " + ns + " === 'undefined')") === -1) {
+                    //Wrap the file contents in a typeof check, and a function
+                    //to contain the API globals.
+                    fileContents = "var " + ns + ";(function () { if (typeof " +
+                                    ns + " === 'undefined') {\n" +
+                                    ns + ' = {};\n' +
+                                    fileContents +
+                                    "\n" +
+                                    ns + ".requirejs = requirejs;" +
+                                    ns + ".require = require;" +
+                                    ns + ".define = define;\n" +
+                                    "}\n}());";
+                }
+
+                //Finally, if the file wants a special wrapper because it ties
+                //in to the requirejs internals in a way that would not fit
+                //the above matches, do that. Look for /*requirejs namespace: true*/
+                if (pragma.nsWrapRegExp.test(fileContents)) {
+                    //Remove the pragma.
+                    fileContents = fileContents.replace(pragma.nsWrapRegExp, '');
+
+                    //Alter the contents.
+                    fileContents = '(function () {\n' +
+                                   'var require = ' + ns + '.require,' +
+                                   'requirejs = ' + ns + '.requirejs,' +
+                                   'define = ' + ns + '.define;\n' +
+                                   fileContents +
+                                   '\n}());';
+                }
+            }
+
+            return fileContents;
+        },
+
+        /**
+         * processes the fileContents for some //>> conditional statements
+         */
+        process: function (fileName, fileContents, config, onLifecycleName, pluginCollector) {
+            /*jslint evil: true */
+            var foundIndex = -1, startIndex = 0, lineEndIndex, conditionLine,
+                matches, type, marker, condition, isTrue, endRegExp, endMatches,
+                endMarkerIndex, shouldInclude, startLength, lifecycleHas, deps,
+                i, dep, moduleName, collectorMod,
+                lifecyclePragmas, pragmas = config.pragmas, hasConfig = config.has,
+                //Legacy arg defined to help in dojo conversion script. Remove later
+                //when dojo no longer needs conversion:
+                kwArgs = pragmas;
+
+            //Mix in a specific lifecycle scoped object, to allow targeting
+            //some pragmas/has tests to only when files are saved, or at different
+            //lifecycle events. Do not bother with kwArgs in this section, since
+            //the old dojo kwArgs were for all points in the build lifecycle.
+            if (onLifecycleName) {
+                lifecyclePragmas = config['pragmas' + onLifecycleName];
+                lifecycleHas = config['has' + onLifecycleName];
+
+                if (lifecyclePragmas) {
+                    pragmas = create(pragmas || {}, lifecyclePragmas);
+                }
+
+                if (lifecycleHas) {
+                    hasConfig = create(hasConfig || {}, lifecycleHas);
+                }
+            }
+
+            //Replace has references if desired
+            if (hasConfig) {
+                fileContents = fileContents.replace(pragma.hasRegExp, function (match, test) {
+                    if (hasConfig.hasOwnProperty(test)) {
+                        return !!hasConfig[test];
+                    }
+                    return match;
+                });
+            }
+
+            if (!config.skipPragmas) {
+
+                while ((foundIndex = fileContents.indexOf("//>>", startIndex)) !== -1) {
+                    //Found a conditional. Get the conditional line.
+                    lineEndIndex = fileContents.indexOf("\n", foundIndex);
+                    if (lineEndIndex === -1) {
+                        lineEndIndex = fileContents.length - 1;
+                    }
+
+                    //Increment startIndex past the line so the next conditional search can be done.
+                    startIndex = lineEndIndex + 1;
+
+                    //Break apart the conditional.
+                    conditionLine = fileContents.substring(foundIndex, lineEndIndex + 1);
+                    matches = conditionLine.match(pragma.conditionalRegExp);
+                    if (matches) {
+                        type = matches[1];
+                        marker = matches[2];
+                        condition = matches[3];
+                        isTrue = false;
+                        //See if the condition is true.
+                        try {
+                            isTrue = !!eval("(" + condition + ")");
+                        } catch (e) {
+                            throw "Error in file: " +
+                                   fileName +
+                                   ". Conditional comment: " +
+                                   conditionLine +
+                                   " failed with this error: " + e;
+                        }
+
+                        //Find the endpoint marker.
+                        endRegExp = new RegExp('\\/\\/\\>\\>\\s*' + type + 'End\\(\\s*[\'"]' + marker + '[\'"]\\s*\\)', "g");
+                        endMatches = endRegExp.exec(fileContents.substring(startIndex, fileContents.length));
+                        if (endMatches) {
+                            endMarkerIndex = startIndex + endRegExp.lastIndex - endMatches[0].length;
+
+                            //Find the next line return based on the match position.
+                            lineEndIndex = fileContents.indexOf("\n", endMarkerIndex);
+                            if (lineEndIndex === -1) {
+                                lineEndIndex = fileContents.length - 1;
+                            }
+
+                            //Should we include the segment?
+                            shouldInclude = ((type === "exclude" && !isTrue) || (type === "include" && isTrue));
+
+                            //Remove the conditional comments, and optionally remove the content inside
+                            //the conditional comments.
+                            startLength = startIndex - foundIndex;
+                            fileContents = fileContents.substring(0, foundIndex) +
+                                (shouldInclude ? fileContents.substring(startIndex, endMarkerIndex) : "") +
+                                fileContents.substring(lineEndIndex + 1, fileContents.length);
+
+                            //Move startIndex to foundIndex, since that is the new position in the file
+                            //where we need to look for more conditionals in the next while loop pass.
+                            startIndex = foundIndex;
+                        } else {
+                            throw "Error in file: " +
+                                  fileName +
+                                  ". Cannot find end marker for conditional comment: " +
+                                  conditionLine;
+
+                        }
+                    }
+                }
+            }
+
+            //If need to find all plugin resources to optimize, do that now,
+            //before namespacing, since the namespacing will change the API
+            //names.
+            //If there is a plugin collector, scan the file for plugin resources.
+            if (config.optimizeAllPluginResources && pluginCollector) {
+                try {
+                    deps = parse.findDependencies(fileName, fileContents);
+                    if (deps.length) {
+                        for (i = 0; i < deps.length; i++) {
+                            dep = deps[i];
+                            if (dep.indexOf('!') !== -1) {
+                                moduleName = dep.split('!')[0];
+                                collectorMod = pluginCollector[moduleName];
+                                if (!collectorMod) {
+                                 collectorMod = pluginCollector[moduleName] = [];
+                                }
+                                collectorMod.push(dep);
+                            }
+                        }
+                    }
+                } catch (eDep) {
+                    logger.error('Parse error looking for plugin resources in ' +
+                                 fileName + ', skipping.');
+                }
+            }
+
+            //Strip amdefine use for node-shared modules.
+            fileContents = fileContents.replace(pragma.amdefineRegExp, '');
+
+            //Do namespacing
+            if (onLifecycleName === 'OnSave' && config.namespace) {
+                fileContents = pragma.namespace(fileContents, config.namespace, onLifecycleName);
+            }
+
+
+            return pragma.removeStrict(fileContents, config);
+        }
+    };
+
+    return pragma;
+});
+if(env === 'node') {
+/**
+ * @license Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+
+/*jslint strict: false */
+/*global define: false */
+
+define('node/optimize', {});
+
+}
+
+if(env === 'rhino') {
+/**
+ * @license Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+
+/*jslint strict: false, plusplus: false */
+/*global define: false, java: false, Packages: false */
+
+define('rhino/optimize', ['logger'], function (logger) {
+
+    //Add .reduce to Rhino so UglifyJS can run in Rhino,
+    //inspired by https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/reduce
+    //but rewritten for brevity, and to be good enough for use by UglifyJS.
+    if (!Array.prototype.reduce) {
+        Array.prototype.reduce = function (fn /*, initialValue */) {
+            var i = 0,
+                length = this.length,
+                accumulator;
+
+            if (arguments.length >= 2) {
+                accumulator = arguments[1];
+            } else {
+                do {
+                    if (i in this) {
+                        accumulator = this[i++];
+                        break;
+                    }
+                }
+                while (true);
+            }
+
+            for (; i < length; i++) {
+                if (i in this) {
+                    accumulator = fn.call(undefined, accumulator, this[i], i, this);
+                }
+            }
+
+            return accumulator;
+        };
+    }
+
+    var JSSourceFilefromCode, optimize;
+
+    //Bind to Closure compiler, but if it is not available, do not sweat it.
+    try {
+        JSSourceFilefromCode = java.lang.Class.forName('com.google.javascript.jscomp.JSSourceFile').getMethod('fromCode', [java.lang.String, java.lang.String]);
+    } catch (e) {}
+
+    //Helper for closure compiler, because of weird Java-JavaScript interactions.
+    function closurefromCode(filename, content) {
+        return JSSourceFilefromCode.invoke(null, [filename, content]);
+    }
+
+    optimize = {
+        closure: function (fileName, fileContents, keepLines, config) {
+            config = config || {};
+            var jscomp = Packages.com.google.javascript.jscomp,
+                flags = Packages.com.google.common.flags,
+                //Fake extern
+                externSourceFile = closurefromCode("fakeextern.js", " "),
+                //Set up source input
+                jsSourceFile = closurefromCode(String(fileName), String(fileContents)),
+                options, option, FLAG_compilation_level, compiler,
+                Compiler = Packages.com.google.javascript.jscomp.Compiler,
+                result;
+
+            logger.trace("Minifying file: " + fileName);
+
+            //Set up options
+            options = new jscomp.CompilerOptions();
+            for (option in config.CompilerOptions) {
+                // options are false by default and jslint wanted an if statement in this for loop
+                if (config.CompilerOptions[option]) {
+                    options[option] = config.CompilerOptions[option];
+                }
+
+            }
+            options.prettyPrint = keepLines || options.prettyPrint;
+
+            FLAG_compilation_level = jscomp.CompilationLevel[config.CompilationLevel || 'SIMPLE_OPTIMIZATIONS'];
+            FLAG_compilation_level.setOptionsForCompilationLevel(options);
+
+            //Trigger the compiler
+            Compiler.setLoggingLevel(Packages.java.util.logging.Level[config.loggingLevel || 'WARNING']);
+            compiler = new Compiler();
+
+            result = compiler.compile(externSourceFile, jsSourceFile, options);
+            if (!result.success) {
+                logger.error('Cannot closure compile file: ' + fileName + '. Skipping it.');
+            } else {
+                fileContents = compiler.toSource();
+            }
+
+            return fileContents;
+        }
+    };
+
+    return optimize;
+});
+}
+/**
+ * @license Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+
+/*jslint plusplus: true, nomen: true, regexp: true */
+/*global define: false */
+
+define('optimize', [ 'lang', 'logger', 'env!env/optimize', 'env!env/file', 'parse',
+         'pragma', 'uglifyjs/index'],
+function (lang,   logger,   envOptimize,        file,           parse,
+          pragma, uglify) {
+    'use strict';
+
+    var optimize,
+        cssImportRegExp = /\@import\s+(url\()?\s*([^);]+)\s*(\))?([\w, ]*)(;)?/g,
+        cssCommentImportRegExp = /\/\*[^\*]*@import[^\*]*\*\//g,
+        cssUrlRegExp = /\url\(\s*([^\)]+)\s*\)?/g;
+
+    /**
+     * If an URL from a CSS url value contains start/end quotes, remove them.
+     * This is not done in the regexp, since my regexp fu is not that strong,
+     * and the CSS spec allows for ' and " in the URL if they are backslash escaped.
+     * @param {String} url
+     */
+    function cleanCssUrlQuotes(url) {
+        //Make sure we are not ending in whitespace.
+        //Not very confident of the css regexps above that there will not be ending
+        //whitespace.
+        url = url.replace(/\s+$/, "");
+
+        if (url.charAt(0) === "'" || url.charAt(0) === "\"") {
+            url = url.substring(1, url.length - 1);
+        }
+
+        return url;
+    }
+
+    /**
+     * Inlines nested stylesheets that have @import calls in them.
+     * @param {String} fileName the file name
+     * @param {String} fileContents the file contents
+     * @param {String} cssImportIgnore comma delimited string of files to ignore
+     * @param {Object} included an object used to track the files already imported
+     */
+    function flattenCss(fileName, fileContents, cssImportIgnore, included) {
+        //Find the last slash in the name.
+        fileName = fileName.replace(lang.backSlashRegExp, "/");
+        var endIndex = fileName.lastIndexOf("/"),
+            //Make a file path based on the last slash.
+            //If no slash, so must be just a file name. Use empty string then.
+            filePath = (endIndex !== -1) ? fileName.substring(0, endIndex + 1) : "",
+            //store a list of merged files
+            importList = [],
+            skippedList = [];
+
+        //First make a pass by removing an commented out @import calls.
+        fileContents = fileContents.replace(cssCommentImportRegExp, '');
+
+        //Make sure we have a delimited ignore list to make matching faster
+        if (cssImportIgnore && cssImportIgnore.charAt(cssImportIgnore.length - 1) !== ",") {
+            cssImportIgnore += ",";
+        }
+
+        fileContents = fileContents.replace(cssImportRegExp, function (fullMatch, urlStart, importFileName, urlEnd, mediaTypes) {
+            //Only process media type "all" or empty media type rules.
+            if (mediaTypes && ((mediaTypes.replace(/^\s\s*/, '').replace(/\s\s*$/, '')) !== "all")) {
+                skippedList.push(fileName);
+                return fullMatch;
+            }
+
+            importFileName = cleanCssUrlQuotes(importFileName);
+
+            //Ignore the file import if it is part of an ignore list.
+            if (cssImportIgnore && cssImportIgnore.indexOf(importFileName + ",") !== -1) {
+                return fullMatch;
+            }
+
+            //Make sure we have a unix path for the rest of the operation.
+            importFileName = importFileName.replace(lang.backSlashRegExp, "/");
+
+            try {
+                //if a relative path, then tack on the filePath.
+                //If it is not a relative path, then the readFile below will fail,
+                //and we will just skip that import.
+                var fullImportFileName = importFileName.charAt(0) === "/" ? importFileName : filePath + importFileName,
+                    importContents = file.readFile(fullImportFileName), i,
+                    importEndIndex, importPath, fixedUrlMatch, colonIndex, parts, flat;
+
+                //Skip the file if it has already been included.
+                if (included[fullImportFileName]) {
+                    return '';
+                }
+                included[fullImportFileName] = true;
+
+                //Make sure to flatten any nested imports.
+                flat = flattenCss(fullImportFileName, importContents, cssImportIgnore, included);
+                importContents = flat.fileContents;
+
+                if (flat.importList.length) {
+                    importList.push.apply(importList, flat.importList);
+                }
+                if (flat.skippedList.length) {
+                    skippedList.push.apply(skippedList, flat.skippedList);
+                }
+
+                //Make the full import path
+                importEndIndex = importFileName.lastIndexOf("/");
+
+                //Make a file path based on the last slash.
+                //If no slash, so must be just a file name. Use empty string then.
+                importPath = (importEndIndex !== -1) ? importFileName.substring(0, importEndIndex + 1) : "";
+
+                //fix url() on relative import (#5)
+                importPath = importPath.replace(/^\.\//, '');
+
+                //Modify URL paths to match the path represented by this file.
+                importContents = importContents.replace(cssUrlRegExp, function (fullMatch, urlMatch) {
+                    fixedUrlMatch = cleanCssUrlQuotes(urlMatch);
+                    fixedUrlMatch = fixedUrlMatch.replace(lang.backSlashRegExp, "/");
+
+                    //Only do the work for relative URLs. Skip things that start with / or have
+                    //a protocol.
+                    colonIndex = fixedUrlMatch.indexOf(":");
+                    if (fixedUrlMatch.charAt(0) !== "/" && (colonIndex === -1 || colonIndex > fixedUrlMatch.indexOf("/"))) {
+                        //It is a relative URL, tack on the path prefix
+                        urlMatch = importPath + fixedUrlMatch;
+                    } else {
+                        logger.trace(importFileName + "\n  URL not a relative URL, skipping: " + urlMatch);
+                    }
+
+                    //Collapse .. and .
+                    parts = urlMatch.split("/");
+                    for (i = parts.length - 1; i > 0; i--) {
+                        if (parts[i] === ".") {
+                            parts.splice(i, 1);
+                        } else if (parts[i] === "..") {
+                            if (i !== 0 && parts[i - 1] !== "..") {
+                                parts.splice(i - 1, 2);
+                                i -= 1;
+                            }
+                        }
+                    }
+
+                    return "url(" + parts.join("/") + ")";
+                });
+
+                importList.push(fullImportFileName);
+                return importContents;
+            } catch (e) {
+                logger.warn(fileName + "\n  Cannot inline css import, skipping: " + importFileName);
+                return fullMatch;
+            }
+        });
+
+        return {
+            importList : importList,
+            skippedList: skippedList,
+            fileContents : fileContents
+        };
+    }
+
+    optimize = {
+        /**
+         * Optimizes a file that contains JavaScript content. Optionally collects
+         * plugin resources mentioned in a file, and then passes the content
+         * through an minifier if one is specified via config.optimize.
+         *
+         * @param {String} fileName the name of the file to optimize
+         * @param {String} fileContents the contents to optimize. If this is
+         * a null value, then fileName will be used to read the fileContents.
+         * @param {String} outFileName the name of the file to use for the
+         * saved optimized content.
+         * @param {Object} config the build config object.
+         * @param {Array} [pluginCollector] storage for any plugin resources
+         * found.
+         */
+        jsFile: function (fileName, fileContents, outFileName, config, pluginCollector) {
+            if (!fileContents) {
+                fileContents = file.readFile(fileName);
+            }
+
+            fileContents = optimize.js(fileName, fileContents, config, pluginCollector);
+
+            file.saveUtf8File(outFileName, fileContents);
+        },
+
+        /**
+         * Optimizes a file that contains JavaScript content. Optionally collects
+         * plugin resources mentioned in a file, and then passes the content
+         * through an minifier if one is specified via config.optimize.
+         *
+         * @param {String} fileName the name of the file that matches the
+         * fileContents.
+         * @param {String} fileContents the string of JS to optimize.
+         * @param {Object} [config] the build config object.
+         * @param {Array} [pluginCollector] storage for any plugin resources
+         * found.
+         */
+        js: function (fileName, fileContents, config, pluginCollector) {
+            var parts = (String(config.optimize)).split('.'),
+                optimizerName = parts[0],
+                keepLines = parts[1] === 'keepLines',
+                licenseContents = '',
+                optFunc;
+
+            config = config || {};
+
+            //Apply pragmas/namespace renaming
+            fileContents = pragma.process(fileName, fileContents, config, 'OnSave', pluginCollector);
+
+            //Optimize the JS files if asked.
+            if (optimizerName && optimizerName !== 'none') {
+                optFunc = envOptimize[optimizerName] || optimize.optimizers[optimizerName];
+                if (!optFunc) {
+                    throw new Error('optimizer with name of "' +
+                                    optimizerName +
+                                    '" not found for this environment');
+                }
+
+                if (config.preserveLicenseComments) {
+                    //Pull out any license comments for prepending after optimization.
+                    try {
+                        licenseContents = parse.getLicenseComments(fileName, fileContents);
+                    } catch (e) {
+                        logger.error('Cannot parse file: ' + fileName + ' for comments. Skipping it. Error is:\n' + e.toString());
+                    }
+                }
+
+                fileContents = licenseContents + optFunc(fileName, fileContents, keepLines,
+                                        config[optimizerName]);
+            }
+
+            return fileContents;
+        },
+
+        /**
+         * Optimizes one CSS file, inlining @import calls, stripping comments, and
+         * optionally removes line returns.
+         * @param {String} fileName the path to the CSS file to optimize
+         * @param {String} outFileName the path to save the optimized file.
+         * @param {Object} config the config object with the optimizeCss and
+         * cssImportIgnore options.
+         */
+        cssFile: function (fileName, outFileName, config) {
+
+            //Read in the file. Make sure we have a JS string.
+            var originalFileContents = file.readFile(fileName),
+                flat = flattenCss(fileName, originalFileContents, config.cssImportIgnore, {}),
+                //Do not use the flattened CSS if there was one that was skipped.
+                fileContents = flat.skippedList.length ? originalFileContents : flat.fileContents,
+                startIndex, endIndex, buildText, comment;
+
+            if (flat.skippedList.length) {
+                logger.warn('Cannot inline @imports for ' + fileName +
+                            ',\nthe following files had media queries in them:\n' +
+                            flat.skippedList.join('\n'));
+            }
+
+            //Do comment removal.
+            try {
+                if (config.optimizeCss.indexOf(".keepComments") === -1) {
+                    startIndex = 0;
+                    //Get rid of comments.
+                    while ((startIndex = fileContents.indexOf("/*", startIndex)) !== -1) {
+                        endIndex = fileContents.indexOf("*/", startIndex + 2);
+                        if (endIndex === -1) {
+                            throw "Improper comment in CSS file: " + fileName;
+                        }
+                        comment = fileContents.substring(startIndex, endIndex);
+
+                        if (config.preserveLicenseComments &&
+                            (comment.indexOf('license') !== -1 ||
+                             comment.indexOf('opyright') !== -1 ||
+                             comment.indexOf('(c)') !== -1)) {
+                            //Keep the comment, just increment the startIndex
+                            startIndex = endIndex;
+                        } else {
+                            fileContents = fileContents.substring(0, startIndex) + fileContents.substring(endIndex + 2, fileContents.length);
+                            startIndex = 0;
+                        }
+                    }
+                }
+                //Get rid of newlines.
+                if (config.optimizeCss.indexOf(".keepLines") === -1) {
+                    fileContents = fileContents.replace(/[\r\n]/g, "");
+                    fileContents = fileContents.replace(/\s+/g, " ");
+                    fileContents = fileContents.replace(/\{\s/g, "{");
+                    fileContents = fileContents.replace(/\s\}/g, "}");
+                } else {
+                    //Remove multiple empty lines.
+                    fileContents = fileContents.replace(/(\r\n)+/g, "\r\n");
+                    fileContents = fileContents.replace(/(\n)+/g, "\n");
+                }
+            } catch (e) {
+                fileContents = originalFileContents;
+                logger.error("Could not optimized CSS file: " + fileName + ", error: " + e);
+            }
+
+            file.saveUtf8File(outFileName, fileContents);
+
+            //text output to stdout and/or written to build.txt file
+            buildText = "\n"+ outFileName.replace(config.dir, "") +"\n----------------\n";
+            flat.importList.push(fileName);
+            buildText += flat.importList.map(function(path){
+                return path.replace(config.dir, "");
+            }).join("\n");
+            return buildText +"\n";
+        },
+
+        /**
+         * Optimizes CSS files, inlining @import calls, stripping comments, and
+         * optionally removes line returns.
+         * @param {String} startDir the path to the top level directory
+         * @param {Object} config the config object with the optimizeCss and
+         * cssImportIgnore options.
+         */
+        css: function (startDir, config) {
+            var buildText = "",
+                i, fileName, fileList;
+            if (config.optimizeCss.indexOf("standard") !== -1) {
+                fileList = file.getFilteredFileList(startDir, /\.css$/, true);
+                if (fileList) {
+                    for (i = 0; i < fileList.length; i++) {
+                        fileName = fileList[i];
+                        logger.trace("Optimizing (" + config.optimizeCss + ") CSS file: " + fileName);
+                        buildText += optimize.cssFile(fileName, fileName, config);
+                    }
+                }
+            }
+            return buildText;
+        },
+
+        optimizers: {
+            uglify: function (fileName, fileContents, keepLines, config) {
+                var parser = uglify.parser,
+                    processor = uglify.uglify,
+                    ast, errMessage, errMatch;
+
+                config = config || {};
+
+                logger.trace("Uglifying file: " + fileName);
+
+                try {
+                    ast = parser.parse(fileContents, config.strict_semicolons);
+                    if (config.no_mangle !== true) {
+                        ast = processor.ast_mangle(ast, config);
+                    }
+                    ast = processor.ast_squeeze(ast, config);
+
+                    fileContents = processor.gen_code(ast, config);
+
+                    if (config.max_line_length) {
+                        fileContents = processor.split_lines(fileContents, config.max_line_length);
+                    }
+                } catch (e) {
+                    errMessage = e.toString();
+                    errMatch = /\nError(\r)?\n/.exec(errMessage);
+                    if (errMatch) {
+                        errMessage = errMessage.substring(0, errMatch.index);
+                    }
+                    logger.error('Cannot uglify file: ' + fileName + '. Skipping it. Error is:\n' + errMessage);
+                }
+                return fileContents;
+            }
+        }
+    };
+
+    return optimize;
+});
+/**
+ * @license RequireJS Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+/*
+ * This file patches require.js to communicate with the build system.
+ */
+
+//Using sloppy since this uses eval for some code like plugins,
+//which may not be strict mode compliant. So if use strict is used
+//below they will have strict rules applied and may cause an error.
+/*jslint sloppy: true, nomen: true, plusplus: true, regexp: true */
+/*global require, define: true */
+
+//NOT asking for require as a dependency since the goal is to modify the
+//global require below
+define('requirePatch', [ 'env!env/file', 'pragma', 'parse', 'lang', 'logger', 'commonJs'],
+function (file,           pragma,   parse,   lang,   logger,   commonJs) {
+
+    var allowRun = true;
+
+    //This method should be called when the patches to require should take hold.
+    return function () {
+        if (!allowRun) {
+            return;
+        }
+        allowRun = false;
+
+        var layer,
+            pluginBuilderRegExp = /(["']?)pluginBuilder(["']?)\s*[=\:]\s*["']([^'"\s]+)["']/,
+            oldNewContext = require.s.newContext,
+            oldDef,
+
+            //create local undefined values for module and exports,
+            //so that when files are evaled in this function they do not
+            //see the node values used for r.js
+            exports,
+            module;
+
+        /**
+         * Reset "global" build caches that are kept around between
+         * build layer builds. Useful to do when there are multiple
+         * top level requirejs.optimize() calls.
+         */
+        require._cacheReset = function () {
+            //Stored cached file contents for reuse in other layers.
+            require._cachedFileContents = {};
+            //Store which cached files contain a require definition.
+            require._cachedDefinesRequireUrls = {};
+        };
+        require._cacheReset();
+
+        /**
+         * Makes sure the URL is something that can be supported by the
+         * optimization tool.
+         * @param {String} url
+         * @returns {Boolean}
+         */
+        require._isSupportedBuildUrl = function (url) {
+            //Ignore URLs with protocols, hosts or question marks, means either network
+            //access is needed to fetch it or it is too dynamic. Note that
+            //on Windows, full paths are used for some urls, which include
+            //the drive, like c:/something, so need to test for something other
+            //than just a colon.
+            if (url.indexOf("://") === -1 && url.indexOf("?") === -1 &&
+                   url.indexOf('empty:') !== 0 && url.indexOf('//') !== 0) {
+                return true;
+            } else {
+                if (!layer.ignoredUrls[url]) {
+                    if (url.indexOf('empty:') === -1) {
+                        logger.info('Cannot optimize network URL, skipping: ' + url);
+                    }
+                    layer.ignoredUrls[url] = true;
+                }
+                return false;
+            }
+        };
+
+        function normalizeUrlWithBase(context, moduleName, url) {
+            //Adjust the URL if it was not transformed to use baseUrl.
+            if (require.jsExtRegExp.test(moduleName)) {
+                url = (context.config.dir || context.config.dirBaseUrl) + url;
+            }
+            return url;
+        }
+
+        //Overrides the new context call to add existing tracking features.
+        require.s.newContext = function (name) {
+            var context = oldNewContext(name),
+                oldEnable = context.enable,
+                moduleProto = context.Module.prototype,
+                oldInit = moduleProto.init,
+                oldCallPlugin = moduleProto.callPlugin;
+
+            //For build contexts, do everything sync
+            context.nextTick = function (fn) {
+                fn();
+            };
+
+            //Only do this for the context used for building.
+            if (name === '_') {
+                context.needFullExec = {};
+                context.fullExec = {};
+                context.plugins = {};
+                context.buildShimExports = {};
+
+                //Override the shim exports function generator to just
+                //spit out strings that can be used in the stringified
+                //build output.
+                context.makeShimExports = function (value) {
+                    function fn() {
+                        return '(function (global) {\n' +
+                        '    return function () {\n' +
+                        '        var ret, fn;\n' +
+                        (value.init ?
+                        ('       fn = ' + value.init.toString() + ';\n' +
+                        '        ret = fn.apply(global, arguments);\n') : '') +
+                        '        return ret || global.' + value.exports + ';\n' +
+                        '    };\n' +
+                        '}(this))';
+                    }
+
+                    return fn;
+                };
+
+                context.enable = function (depMap, parent) {
+                    var id = depMap.id,
+                        parentId = parent && parent.map.id,
+                        needFullExec = context.needFullExec,
+                        fullExec = context.fullExec,
+                        mod = context.registry[id];
+
+                    if (mod && !mod.defined) {
+                        if (parentId && needFullExec[parentId]) {
+                            needFullExec[id] = true;
+                        }
+                    } else if ((needFullExec[id] && !fullExec[id]) ||
+                               (parentId && needFullExec[parentId] && !fullExec[id])) {
+                        context.require.undef(id);
+                    }
+
+                    return oldEnable.apply(context, arguments);
+                };
+
+                //Override load so that the file paths can be collected.
+                context.load = function (moduleName, url) {
+                    /*jslint evil: true */
+                    var contents, pluginBuilderMatch, builderName,
+                        shim, shimExports;
+
+                    //Do not mark the url as fetched if it is
+                    //not an empty: URL, used by the optimizer.
+                    //In that case we need to be sure to call
+                    //load() for each module that is mapped to
+                    //empty: so that dependencies are satisfied
+                    //correctly.
+                    if (url.indexOf('empty:') === 0) {
+                        delete context.urlFetched[url];
+                    }
+
+                    //Only handle urls that can be inlined, so that means avoiding some
+                    //URLs like ones that require network access or may be too dynamic,
+                    //like JSONP
+                    if (require._isSupportedBuildUrl(url)) {
+                        //Adjust the URL if it was not transformed to use baseUrl.
+                        url = normalizeUrlWithBase(context, moduleName, url);
+
+                        //Save the module name to path  and path to module name mappings.
+                        layer.buildPathMap[moduleName] = url;
+                        layer.buildFileToModule[url] = moduleName;
+
+                        if (context.plugins.hasOwnProperty(moduleName)) {
+                            //plugins need to have their source evaled as-is.
+                            context.needFullExec[moduleName] = true;
+                        }
+
+                        try {
+                            if (require._cachedFileContents.hasOwnProperty(url) &&
+                                (!context.needFullExec[moduleName] || context.fullExec[moduleName])) {
+                                contents = require._cachedFileContents[url];
+
+                                //If it defines require, mark it so it can be hoisted.
+                                //Done here and in the else below, before the
+                                //else block removes code from the contents.
+                                //Related to #263
+                                if (!layer.existingRequireUrl && require._cachedDefinesRequireUrls[url]) {
+                                    layer.existingRequireUrl = url;
+                                }
+                            } else {
+                                //Load the file contents, process for conditionals, then
+                                //evaluate it.
+                                contents = file.readFile(url);
+
+                                if (context.config.cjsTranslate) {
+                                    contents = commonJs.convert(url, contents);
+                                }
+
+                                //If there is a read filter, run it now.
+                                if (context.config.onBuildRead) {
+                                    contents = context.config.onBuildRead(moduleName, url, contents);
+                                }
+
+                                contents = pragma.process(url, contents, context.config, 'OnExecute');
+
+                                //Find out if the file contains a require() definition. Need to know
+                                //this so we can inject plugins right after it, but before they are needed,
+                                //and to make sure this file is first, so that define calls work.
+                                try {
+                                    if (!layer.existingRequireUrl && parse.definesRequire(url, contents)) {
+                                        layer.existingRequireUrl = url;
+                                        require._cachedDefinesRequireUrls[url] = true;
+                                    }
+                                } catch (e1) {
+                                    throw new Error('Parse error using esprima ' +
+                                                    'for file: ' + url + '\n' + e1);
+                                }
+
+                                if (context.plugins.hasOwnProperty(moduleName)) {
+                                    //This is a loader plugin, check to see if it has a build extension,
+                                    //otherwise the plugin will act as the plugin builder too.
+                                    pluginBuilderMatch = pluginBuilderRegExp.exec(contents);
+                                    if (pluginBuilderMatch) {
+                                        //Load the plugin builder for the plugin contents.
+                                        builderName = context.makeModuleMap(pluginBuilderMatch[3],
+                                                                            context.makeModuleMap(moduleName),
+                                                                            null,
+                                                                            true).id;
+                                        contents = file.readFile(context.nameToUrl(builderName));
+                                    }
+                                }
+
+                                //Parse out the require and define calls.
+                                //Do this even for plugins in case they have their own
+                                //dependencies that may be separate to how the pluginBuilder works.
+                                try {
+                                    if (!context.needFullExec[moduleName]) {
+                                        contents = parse(moduleName, url, contents, {
+                                            insertNeedsDefine: true,
+                                            has: context.config.has,
+                                            findNestedDependencies: context.config.findNestedDependencies
+                                        });
+                                    }
+                                } catch (e2) {
+                                    throw new Error('Parse error using esprima ' +
+                                                    'for file: ' + url + '\n' + e2);
+                                }
+
+                                require._cachedFileContents[url] = contents;
+                            }
+
+                            if (contents) {
+                                eval(contents);
+                            }
+
+                            try {
+                                //If have a string shim config, and this is
+                                //a fully executed module, try to see if
+                                //it created a variable in this eval scope
+                                if (context.needFullExec[moduleName]) {
+                                    shim = context.config.shim[moduleName];
+                                    if (shim && shim.exports) {
+                                        shimExports = eval(shim.exports);
+                                        if (typeof shimExports !== 'undefined') {
+                                            context.buildShimExports[moduleName] = shimExports;
+                                        }
+                                    }
+                                }
+
+                                //Need to close out completion of this module
+                                //so that listeners will get notified that it is available.
+                                context.completeLoad(moduleName);
+                            } catch (e) {
+                                //Track which module could not complete loading.
+                                if (!e.moduleTree) {
+                                    e.moduleTree = [];
+                                }
+                                e.moduleTree.push(moduleName);
+                                throw e;
+                            }
+
+                        } catch (eOuter) {
+                            if (!eOuter.fileName) {
+                                eOuter.fileName = url;
+                            }
+                            throw eOuter;
+                        }
+                    } else {
+                        //With unsupported URLs still need to call completeLoad to
+                        //finish loading.
+                        context.completeLoad(moduleName);
+                    }
+                };
+
+                //Marks module has having a name, and optionally executes the
+                //callback, but only if it meets certain criteria.
+                context.execCb = function (name, cb, args, exports) {
+                    var buildShimExports = layer.context.buildShimExports[name];
+
+                    if (!layer.needsDefine[name] && !buildShimExports) {
+                        layer.modulesWithNames[name] = true;
+                    }
+
+                    if (buildShimExports) {
+                        return buildShimExports;
+                    } else if (cb.__requireJsBuild || layer.context.needFullExec[name]) {
+                        return cb.apply(exports, args);
+                    }
+                    return undefined;
+                };
+
+                moduleProto.init = function(depMaps) {
+                    if (context.needFullExec[this.map.id]) {
+                        lang.each(depMaps, lang.bind(this, function (depMap) {
+                            if (typeof depMap === 'string') {
+                                depMap = context.makeModuleMap(depMap,
+                                               (this.map.isDefine ? this.map : this.map.parentMap));
+                            }
+
+                            if (!context.fullExec[depMap.id]) {
+                                context.require.undef(depMap.id);
+                            }
+                        }));
+                    }
+
+                    return oldInit.apply(this, arguments);
+                };
+
+                moduleProto.callPlugin = function () {
+                    var map = this.map,
+                        pluginMap = context.makeModuleMap(map.prefix),
+                        pluginId = pluginMap.id,
+                        pluginMod = context.registry[pluginId];
+
+                    context.plugins[pluginId] = true;
+                    context.needFullExec[pluginId] = true;
+
+                    //If the module is not waiting to finish being defined,
+                    //undef it and start over, to get full execution.
+                    if (!context.fullExec[pluginId] && (!pluginMod || pluginMod.defined)) {
+                        context.require.undef(pluginMap.id);
+                    }
+
+                    return oldCallPlugin.apply(this, arguments);
+                };
+            }
+
+            return context;
+        };
+
+        //Clear up the existing context so that the newContext modifications
+        //above will be active.
+        delete require.s.contexts._;
+
+        /** Reset state for each build layer pass. */
+        require._buildReset = function () {
+            var oldContext = require.s.contexts._;
+
+            //Clear up the existing context.
+            delete require.s.contexts._;
+
+            //Set up new context, so the layer object can hold onto it.
+            require({});
+
+            layer = require._layer = {
+                buildPathMap: {},
+                buildFileToModule: {},
+                buildFilePaths: [],
+                pathAdded: {},
+                modulesWithNames: {},
+                needsDefine: {},
+                existingRequireUrl: "",
+                ignoredUrls: {},
+                context: require.s.contexts._
+            };
+
+            //Return the previous context in case it is needed, like for
+            //the basic config object.
+            return oldContext;
+        };
+
+        require._buildReset();
+
+        //Override define() to catch modules that just define an object, so that
+        //a dummy define call is not put in the build file for them. They do
+        //not end up getting defined via context.execCb, so we need to catch them
+        //at the define call.
+        oldDef = define;
+
+        //This function signature does not have to be exact, just match what we
+        //are looking for.
+        define = function (name) {
+            if (typeof name === "string" && !layer.needsDefine[name]) {
+                layer.modulesWithNames[name] = true;
+            }
+            return oldDef.apply(require, arguments);
+        };
+
+        define.amd = oldDef.amd;
+
+        //Add some utilities for plugins
+        require._readFile = file.readFile;
+        require._fileExists = function (path) {
+            return file.exists(path);
+        };
+
+        //Called when execManager runs for a dependency. Used to figure out
+        //what order of execution.
+        require.onResourceLoad = function (context, map) {
+            var id = map.id,
+                url;
+
+            //If build needed a full execution, indicate it
+            //has been done now. But only do it if the context is tracking
+            //that. Only valid for the context used in a build, not for
+            //other contexts being run, like for useLib, plain requirejs
+            //use in node/rhino.
+            if (context.needFullExec && context.needFullExec[id]) {
+                context.fullExec[id] = true;
+            }
+
+            //A plugin.
+            if (map.prefix) {
+                if (!layer.pathAdded[id]) {
+                    layer.buildFilePaths.push(id);
+                    //For plugins the real path is not knowable, use the name
+                    //for both module to file and file to module mappings.
+                    layer.buildPathMap[id] = id;
+                    layer.buildFileToModule[id] = id;
+                    layer.modulesWithNames[id] = true;
+                    layer.pathAdded[id] = true;
+                }
+            } else if (map.url && require._isSupportedBuildUrl(map.url)) {
+                //If the url has not been added to the layer yet, and it
+                //is from an actual file that was loaded, add it now.
+                url = normalizeUrlWithBase(context, id, map.url);
+                if (!layer.pathAdded[url] && layer.buildPathMap[id]) {
+                    //Remember the list of dependencies for this layer.
+                    layer.buildFilePaths.push(url);
+                    layer.pathAdded[url] = true;
+                }
+            }
+        };
+
+        //Called by output of the parse() function, when a file does not
+        //explicitly call define, probably just require, but the parse()
+        //function normalizes on define() for dependency mapping and file
+        //ordering works correctly.
+        require.needsDefine = function (moduleName) {
+            layer.needsDefine[moduleName] = true;
+        };
+    };
+});
+/**
+ * @license RequireJS Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+
+/*jslint */
+/*global define: false, console: false */
+
+define('commonJs', ['env!env/file', 'parse'], function (file, parse) {
+    'use strict';
+    var commonJs = {
+        //Set to false if you do not want this file to log. Useful in environments
+        //like node where you want the work to happen without noise.
+        useLog: true,
+
+        convertDir: function (commonJsPath, savePath) {
+            var fileList, i,
+                jsFileRegExp = /\.js$/,
+                fileName, convertedFileName, fileContents;
+
+            //Get list of files to convert.
+            fileList = file.getFilteredFileList(commonJsPath, /\w/, true);
+
+            //Normalize on front slashes and make sure the paths do not end in a slash.
+            commonJsPath = commonJsPath.replace(/\\/g, "/");
+            savePath = savePath.replace(/\\/g, "/");
+            if (commonJsPath.charAt(commonJsPath.length - 1) === "/") {
+                commonJsPath = commonJsPath.substring(0, commonJsPath.length - 1);
+            }
+            if (savePath.charAt(savePath.length - 1) === "/") {
+                savePath = savePath.substring(0, savePath.length - 1);
+            }
+
+            //Cycle through all the JS files and convert them.
+            if (!fileList || !fileList.length) {
+                if (commonJs.useLog) {
+                    if (commonJsPath === "convert") {
+                        //A request just to convert one file.
+                        console.log('\n\n' + commonJs.convert(savePath, file.readFile(savePath)));
+                    } else {
+                        console.log("No files to convert in directory: " + commonJsPath);
+                    }
+                }
+            } else {
+                for (i = 0; i < fileList.length; i++) {
+                    fileName = fileList[i];
+                    convertedFileName = fileName.replace(commonJsPath, savePath);
+
+                    //Handle JS files.
+                    if (jsFileRegExp.test(fileName)) {
+                        fileContents = file.readFile(fileName);
+                        fileContents = commonJs.convert(fileName, fileContents);
+                        file.saveUtf8File(convertedFileName, fileContents);
+                    } else {
+                        //Just copy the file over.
+                        file.copyFile(fileName, convertedFileName, true);
+                    }
+                }
+            }
+        },
+
+        /**
+         * Does the actual file conversion.
+         *
+         * @param {String} fileName the name of the file.
+         *
+         * @param {String} fileContents the contents of a file :)
+         *
+         * @returns {String} the converted contents
+         */
+        convert: function (fileName, fileContents) {
+            //Strip out comments.
+            try {
+                var preamble = '',
+                    commonJsProps = parse.usesCommonJs(fileName, fileContents);
+
+                //First see if the module is not already RequireJS-formatted.
+                if (parse.usesAmdOrRequireJs(fileName, fileContents) || !commonJsProps) {
+                    return fileContents;
+                }
+
+                if (commonJsProps.dirname || commonJsProps.filename) {
+                    preamble = 'var __filename = module.uri || "", ' +
+                               '__dirname = __filename.substring(0, __filename.lastIndexOf("/") + 1);\n';
+                }
+
+                //Construct the wrapper boilerplate.
+                fileContents = 'define(function (require, exports, module) {\n' +
+                    preamble +
+                    fileContents +
+                    '\n});\n';
+
+            } catch (e) {
+                console.log("commonJs.convert: COULD NOT CONVERT: " + fileName + ", so skipping it. Error was: " + e);
+                return fileContents;
+            }
+
+            return fileContents;
+        }
+    };
+
+    return commonJs;
+});
+/**
+ * @license Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+
+/*jslint plusplus: true, nomen: true, regexp: true  */
+/*global define, require */
+
+
+define('build', [ 'lang', 'logger', 'env!env/file', 'parse', 'optimize', 'pragma',
+         'transform', 'env!env/load', 'requirePatch', 'env!env/quit',
+         'commonJs'], function (lang, logger, file,  parse, optimize, pragma,
+          transform,   load,           requirePatch,   quit,
+          commonJs) {
+    'use strict';
+
+    var build, buildBaseConfig,
+        endsWithSemiColonRegExp = /;\s*$/;
+
+    buildBaseConfig = {
+        appDir: "",
+        pragmas: {},
+        paths: {},
+        optimize: "uglify",
+        optimizeCss: "standard.keepLines",
+        inlineText: true,
+        isBuild: true,
+        optimizeAllPluginResources: false,
+        findNestedDependencies: false,
+        preserveLicenseComments: true,
+        //By default, all files/directories are copied, unless
+        //they match this regexp, by default just excludes .folders
+        dirExclusionRegExp: file.dirExclusionRegExp,
+        _buildPathToModuleIndex: {}
+    };
+
+    /**
+     * Some JS may not be valid if concatenated with other JS, in particular
+     * the style of omitting semicolons and rely on ASI. Add a semicolon in
+     * those cases.
+     */
+    function addSemiColon(text) {
+        if (endsWithSemiColonRegExp.test(text)) {
+            return text;
+        } else {
+            return text + ";";
+        }
+    }
+
+    function endsWithSlash(dirName) {
+        if (dirName.charAt(dirName.length - 1) !== "/") {
+            dirName += "/";
+        }
+        return dirName;
+    }
+
+    //Method used by plugin writeFile calls, defined up here to avoid
+    //jslint warning about "making a function in a loop".
+    function makeWriteFile(namespace, layer) {
+        function writeFile(name, contents) {
+            logger.trace('Saving plugin-optimized file: ' + name);
+            file.saveUtf8File(name, contents);
+        }
+
+        writeFile.asModule = function (moduleName, fileName, contents) {
+            writeFile(fileName,
+                build.toTransport(namespace, moduleName, fileName, contents, layer));
+        };
+
+        return writeFile;
+    }
+
+    /**
+     * Main API entry point into the build. The args argument can either be
+     * an array of arguments (like the onese passed on a command-line),
+     * or it can be a JavaScript object that has the format of a build profile
+     * file.
+     *
+     * If it is an object, then in addition to the normal properties allowed in
+     * a build profile file, the object should contain one other property:
+     *
+     * The object could also contain a "buildFile" property, which is a string
+     * that is the file path to a build profile that contains the rest
+     * of the build profile directives.
+     *
+     * This function does not return a status, it should throw an error if
+     * there is a problem completing the build.
+     */
+    build = function (args) {
+        var buildFile, cmdConfig, errorMsg, errorStack, stackMatch, errorTree,
+            i, j, errorMod,
+            stackRegExp = /( {4}at[^\n]+)\n/,
+            standardIndent = '  ';
+
+        try {
+            if (!args || lang.isArray(args)) {
+                if (!args || args.length < 1) {
+                    logger.error("build.js buildProfile.js\n" +
+                          "where buildProfile.js is the name of the build file (see example.build.js for hints on how to make a build file).");
+                    return undefined;
+                }
+
+                //Next args can include a build file path as well as other build args.
+                //build file path comes first. If it does not contain an = then it is
+                //a build file path. Otherwise, just all build args.
+                if (args[0].indexOf("=") === -1) {
+                    buildFile = args[0];
+                    args.splice(0, 1);
+                }
+
+                //Remaining args are options to the build
+                cmdConfig = build.convertArrayToObject(args);
+                cmdConfig.buildFile = buildFile;
+            } else {
+                cmdConfig = args;
+            }
+
+            return build._run(cmdConfig);
+        } catch (e) {
+            errorMsg = e.toString();
+            errorTree = e.moduleTree;
+            stackMatch = stackRegExp.exec(errorMsg);
+
+            if (stackMatch) {
+                errorMsg += errorMsg.substring(0, stackMatch.index + stackMatch[0].length + 1);
+            }
+
+            //If a module tree that shows what module triggered the error,
+            //print it out.
+            if (errorTree && errorTree.length > 0) {
+                errorMsg += '\nIn module tree:\n';
+
+                for (i = errorTree.length - 1; i > -1; i--) {
+                    errorMod = errorTree[i];
+                    if (errorMod) {
+                        for (j = errorTree.length - i; j > -1; j--) {
+                            errorMsg += standardIndent;
+                        }
+                        errorMsg += errorMod + '\n';
+                    }
+                }
+
+                logger.error(errorMsg);
+            }
+
+            errorStack = e.stack;
+
+            if (typeof args === 'string' && args.indexOf('stacktrace=true') !== -1) {
+                errorMsg += '\n' + errorStack;
+            } else {
+                if (!stackMatch && errorStack) {
+                    //Just trim out the first "at" in the stack.
+                    stackMatch = stackRegExp.exec(errorStack);
+                    if (stackMatch) {
+                        errorMsg += '\n' + stackMatch[0] || '';
+                    }
+                }
+            }
+
+            if (logger.level > logger.ERROR) {
+                throw new Error(errorMsg);
+            } else {
+                logger.error(errorMsg);
+                quit(1);
+            }
+        }
+    };
+
+    build._run = function (cmdConfig) {
+        var buildPaths, fileName, fileNames,
+            prop, paths, i,
+            baseConfig, config,
+            modules, builtModule, srcPath, buildContext,
+            destPath, moduleName, moduleMap, parentModuleMap, context,
+            resources, resource, plugin, fileContents,
+            pluginProcessed = {},
+            buildFileContents = "",
+            pluginCollector = {};
+
+        //Can now run the patches to require.js to allow it to be used for
+        //build generation. Do it here instead of at the top of the module
+        //because we want normal require behavior to load the build tool
+        //then want to switch to build mode.
+        requirePatch();
+
+        config = build.createConfig(cmdConfig);
+        paths = config.paths;
+
+        if (config.logLevel) {
+            logger.logLevel(config.logLevel);
+        }
+
+        //Remove the previous build dir, in case it contains source transforms,
+        //like the ones done with onBuildRead and onBuildWrite.
+        if (config.dir && !config.keepBuildDir && file.exists(config.dir)) {
+            file.deleteFile(config.dir);
+        }
+
+        if (!config.out && !config.cssIn) {
+            //This is not just a one-off file build but a full build profile, with
+            //lots of files to process.
+
+            //First copy all the baseUrl content
+            file.copyDir((config.appDir || config.baseUrl), config.dir, /\w/, true);
+
+            //Adjust baseUrl if config.appDir is in play, and set up build output paths.
+            buildPaths = {};
+            if (config.appDir) {
+                //All the paths should be inside the appDir, so just adjust
+                //the paths to use the dirBaseUrl
+                for (prop in paths) {
+                    if (paths.hasOwnProperty(prop)) {
+                        buildPaths[prop] = paths[prop].replace(config.appDir, config.dir);
+                    }
+                }
+            } else {
+                //If no appDir, then make sure to copy the other paths to this directory.
+                for (prop in paths) {
+                    if (paths.hasOwnProperty(prop)) {
+                        //Set up build path for each path prefix, but only do so
+                        //if the path falls out of the current baseUrl
+                        if (paths[prop].indexOf(config.baseUrl) === 0) {
+                            buildPaths[prop] = paths[prop].replace(config.baseUrl, config.dirBaseUrl);
+                        } else {
+                            buildPaths[prop] = paths[prop] === 'empty:' ? 'empty:' : prop.replace(/\./g, "/");
+
+                            //Make sure source path is fully formed with baseUrl,
+                            //if it is a relative URL.
+                            srcPath = paths[prop];
+                            if (srcPath.indexOf('/') !== 0 && srcPath.indexOf(':') === -1) {
+                                srcPath = config.baseUrl + srcPath;
+                            }
+
+                            destPath = config.dirBaseUrl + buildPaths[prop];
+
+                            //Skip empty: paths
+                            if (srcPath !== 'empty:') {
+                                //If the srcPath is a directory, copy the whole directory.
+                                if (file.exists(srcPath) && file.isDirectory(srcPath)) {
+                                    //Copy files to build area. Copy all files (the /\w/ regexp)
+                                    file.copyDir(srcPath, destPath, /\w/, true);
+                                } else {
+                                    //Try a .js extension
+                                    srcPath += '.js';
+                                    destPath += '.js';
+                                    file.copyFile(srcPath, destPath);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        //Figure out source file location for each module layer. Do this by seeding require
+        //with source area configuration. This is needed so that later the module layers
+        //can be manually copied over to the source area, since the build may be
+        //require multiple times and the above copyDir call only copies newer files.
+        require({
+            baseUrl: config.baseUrl,
+            paths: paths,
+            packagePaths: config.packagePaths,
+            packages: config.packages
+        });
+        buildContext = require.s.contexts._;
+        modules = config.modules;
+
+        if (modules) {
+            modules.forEach(function (module) {
+                if (module.name) {
+                    module._sourcePath = buildContext.nameToUrl(module.name);
+                    //If the module does not exist, and this is not a "new" module layer,
+                    //as indicated by a true "create" property on the module, and
+                    //it is not a plugin-loaded resource, then throw an error.
+                    if (!file.exists(module._sourcePath) && !module.create &&
+                            module.name.indexOf('!') === -1) {
+                        throw new Error("ERROR: module path does not exist: " +
+                                        module._sourcePath + " for module named: " + module.name +
+                                        ". Path is relative to: " + file.absPath('.'));
+                    }
+                }
+            });
+        }
+
+        if (config.out) {
+            //Just set up the _buildPath for the module layer.
+            require(config);
+            if (!config.cssIn) {
+                config.modules[0]._buildPath = typeof config.out === 'function' ?
+                                               'FUNCTION' : config.out;
+            }
+        } else if (!config.cssIn) {
+            //Now set up the config for require to use the build area, and calculate the
+            //build file locations. Pass along any config info too.
+            baseConfig = {
+                baseUrl: config.dirBaseUrl,
+                paths: buildPaths
+            };
+
+            lang.mixin(baseConfig, config);
+            require(baseConfig);
+
+            if (modules) {
+                modules.forEach(function (module) {
+                    if (module.name) {
+                        module._buildPath = buildContext.nameToUrl(module.name, null);
+                        if (!module.create) {
+                            file.copyFile(module._sourcePath, module._buildPath);
+                        }
+                    }
+                });
+            }
+        }
+
+        //Run CSS optimizations before doing JS module tracing, to allow
+        //things like text loader plugins loading CSS to get the optimized
+        //CSS.
+        if (config.optimizeCss && config.optimizeCss !== "none" && config.dir) {
+            buildFileContents += optimize.css(config.dir, config);
+        }
+
+        if (modules) {
+            modules.forEach(function (module, i) {
+                //Save off buildPath to module index in a hash for quicker
+                //lookup later.
+                config._buildPathToModuleIndex[module._buildPath] = i;
+
+                //Call require to calculate dependencies.
+                module.layer = build.traceDependencies(module, config);
+            });
+
+            //Now build up shadow layers for anything that should be excluded.
+            //Do this after tracing dependencies for each module, in case one
+            //of those modules end up being one of the excluded values.
+            modules.forEach(function (module) {
+                if (module.exclude) {
+                    module.excludeLayers = [];
+                    module.exclude.forEach(function (exclude, i) {
+                        //See if it is already in the list of modules.
+                        //If not trace dependencies for it.
+                        module.excludeLayers[i] = build.findBuildModule(exclude, modules) ||
+                                                 {layer: build.traceDependencies({name: exclude}, config)};
+                    });
+                }
+            });
+
+            modules.forEach(function (module) {
+                if (module.exclude) {
+                    //module.exclude is an array of module names. For each one,
+                    //get the nested dependencies for it via a matching entry
+                    //in the module.excludeLayers array.
+                    module.exclude.forEach(function (excludeModule, i) {
+                        var excludeLayer = module.excludeLayers[i].layer, map = excludeLayer.buildPathMap, prop;
+                        for (prop in map) {
+                            if (map.hasOwnProperty(prop)) {
+                                build.removeModulePath(prop, map[prop], module.layer);
+                            }
+                        }
+                    });
+                }
+                if (module.excludeShallow) {
+                    //module.excludeShallow is an array of module names.
+                    //shallow exclusions are just that module itself, and not
+                    //its nested dependencies.
+                    module.excludeShallow.forEach(function (excludeShallowModule) {
+                        var path = module.layer.buildPathMap[excludeShallowModule];
+                        if (path) {
+                            build.removeModulePath(excludeShallowModule, path, module.layer);
+                        }
+                    });
+                }
+
+                //Flatten them and collect the build output for each module.
+                builtModule = build.flattenModule(module, module.layer, config);
+
+                //Save it to a temp file for now, in case there are other layers that
+                //contain optimized content that should not be included in later
+                //layer optimizations. See issue #56.
+                if (module._buildPath === 'FUNCTION') {
+                    module._buildText = builtModule.text;
+                } else {
+                    file.saveUtf8File(module._buildPath + '-temp', builtModule.text);
+                }
+                buildFileContents += builtModule.buildText;
+            });
+
+            //Now move the build layers to their final position.
+            modules.forEach(function (module) {
+                var finalPath = module._buildPath;
+                if (finalPath !== 'FUNCTION') {
+                    if (file.exists(finalPath)) {
+                        file.deleteFile(finalPath);
+                    }
+                    file.renameFile(finalPath + '-temp', finalPath);
+
+                    //And finally, if removeCombined is specified, remove
+                    //any of the files that were used in this layer.
+                    //Be sure not to remove other build layers.
+                    if (config.removeCombined) {
+                        module.layer.buildFilePaths.forEach(function (path) {
+                            if (file.exists(path) && !modules.some(function (mod) {
+                                    return mod._buildPath === path;
+                                })) {
+                                file.deleteFile(path);
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        //If removeCombined in play, remove any empty directories that
+        //may now exist because of its use
+        if (config.removeCombined && !config.out && config.dir) {
+            file.deleteEmptyDirs(config.dir);
+        }
+
+        //Do other optimizations.
+        if (config.out && !config.cssIn) {
+            //Just need to worry about one JS file.
+            fileName = config.modules[0]._buildPath;
+            if (fileName === 'FUNCTION') {
+                config.modules[0]._buildText = optimize.js(fileName,
+                                                           config.modules[0]._buildText,
+                                                           config);
+            } else {
+                optimize.jsFile(fileName, null, fileName, config);
+            }
+        } else if (!config.cssIn) {
+            //Normal optimizations across modules.
+
+            //JS optimizations.
+            fileNames = file.getFilteredFileList(config.dir, /\.js$/, true);
+            fileNames.forEach(function (fileName, i) {
+                var cfg, moduleIndex, override;
+
+                //Generate the module name from the config.dir root.
+                moduleName = fileName.replace(config.dir, '');
+                //Get rid of the extension
+                moduleName = moduleName.substring(0, moduleName.length - 3);
+
+                //Convert the file to transport format, but without a name
+                //inserted (by passing null for moduleName) since the files are
+                //standalone, one module per file.
+                fileContents = file.readFile(fileName);
+
+                //For builds, if wanting cjs translation, do it now, so that
+                //the individual modules can be loaded cross domain via
+                //plain script tags.
+                if (config.cjsTranslate) {
+                    fileContents = commonJs.convert(fileName, fileContents);
+                }
+
+                fileContents = build.toTransport(config.namespace,
+                                                 null,
+                                                 fileName,
+                                                 fileContents);
+
+                //If there is an override for a specific layer build module,
+                //and this file is that module, mix in the override for use
+                //by optimize.jsFile.
+                moduleIndex = config._buildPathToModuleIndex[fileName];
+                override = moduleIndex === 0 || moduleIndex > 0 ?
+                           config.modules[moduleIndex].override : null;
+                if (override) {
+                    cfg = {};
+                    lang.mixin(cfg, config, override, true);
+                } else {
+                    cfg = config;
+                }
+
+                optimize.jsFile(fileName, fileContents, fileName, cfg, pluginCollector);
+            });
+
+            //Normalize all the plugin resources.
+            context = require.s.contexts._;
+
+            for (moduleName in pluginCollector) {
+                if (pluginCollector.hasOwnProperty(moduleName)) {
+                    parentModuleMap = context.makeModuleMap(moduleName);
+                    resources = pluginCollector[moduleName];
+                    for (i = 0; i < resources.length; i++) {
+                        resource = resources[i];
+                        moduleMap = context.makeModuleMap(resource, parentModuleMap);
+                        if (!context.plugins[moduleMap.prefix]) {
+                            //Set the value in context.plugins so it
+                            //will be evaluated as a full plugin.
+                            context.plugins[moduleMap.prefix] = true;
+
+                            //Do not bother if the plugin is not available.
+                            if (!file.exists(require.toUrl(moduleMap.prefix + '.js'))) {
+                                continue;
+                            }
+
+                            //Rely on the require in the build environment
+                            //to be synchronous
+                            context.require([moduleMap.prefix]);
+
+                            //Now that the plugin is loaded, redo the moduleMap
+                            //since the plugin will need to normalize part of the path.
+                            moduleMap = context.makeModuleMap(resource, parentModuleMap);
+                        }
+
+                        //Only bother with plugin resources that can be handled
+                        //processed by the plugin, via support of the writeFile
+                        //method.
+                        if (!pluginProcessed[moduleMap.id]) {
+                            //Only do the work if the plugin was really loaded.
+                            //Using an internal access because the file may
+                            //not really be loaded.
+                            plugin = context.defined[moduleMap.prefix];
+                            if (plugin && plugin.writeFile) {
+                                plugin.writeFile(
+                                    moduleMap.prefix,
+                                    moduleMap.name,
+                                    require,
+                                    makeWriteFile(
+                                        config.namespace
+                                    ),
+                                    context.config
+                                );
+                            }
+
+                            pluginProcessed[moduleMap.id] = true;
+                        }
+                    }
+
+                }
+            }
+
+            //console.log('PLUGIN COLLECTOR: ' + JSON.stringify(pluginCollector, null, "  "));
+
+
+            //All module layers are done, write out the build.txt file.
+            file.saveUtf8File(config.dir + "build.txt", buildFileContents);
+        }
+
+        //If just have one CSS file to optimize, do that here.
+        if (config.cssIn) {
+            buildFileContents += optimize.cssFile(config.cssIn, config.out, config);
+        }
+
+        if (typeof config.out === 'function') {
+            config.out(config.modules[0]._buildText);
+        }
+
+        //Print out what was built into which layers.
+        if (buildFileContents) {
+            logger.info(buildFileContents);
+            return buildFileContents;
+        }
+
+        return '';
+    };
+
+    /**
+     * Converts command line args like "paths.foo=../some/path"
+     * result.paths = { foo: '../some/path' } where prop = paths,
+     * name = paths.foo and value = ../some/path, so it assumes the
+     * name=value splitting has already happened.
+     */
+    function stringDotToObj(result, name, value) {
+        var parts = name.split('.'),
+            prop = parts[0];
+
+        parts.forEach(function (prop, i) {
+            if (i === parts.length - 1) {
+                result[prop] = value;
+            } else {
+                if (!result[prop]) {
+                    result[prop] = {};
+                }
+                result = result[prop];
+            }
+
+        });
+    }
+
+    //Used by convertArrayToObject to convert some things from prop.name=value
+    //to a prop: { name: value}
+    build.dotProps = [
+        'paths.',
+        'wrap.',
+        'pragmas.',
+        'pragmasOnSave.',
+        'has.',
+        'hasOnSave.',
+        'wrap.',
+        'uglify.',
+        'closure.',
+        'map.'
+    ];
+
+    build.hasDotPropMatch = function (prop) {
+        return build.dotProps.some(function (dotProp) {
+            return prop.indexOf(dotProp) === 0;
+        });
+    };
+
+    /**
+     * Converts an array that has String members of "name=value"
+     * into an object, where the properties on the object are the names in the array.
+     * Also converts the strings "true" and "false" to booleans for the values.
+     * member name/value pairs, and converts some comma-separated lists into
+     * arrays.
+     * @param {Array} ary
+     */
+    build.convertArrayToObject = function (ary) {
+        var result = {}, i, separatorIndex, prop, value,
+            needArray = {
+                "include": true,
+                "exclude": true,
+                "excludeShallow": true,
+                "insertRequire": true
+            };
+
+        for (i = 0; i < ary.length; i++) {
+            separatorIndex = ary[i].indexOf("=");
+            if (separatorIndex === -1) {
+                throw "Malformed name/value pair: [" + ary[i] + "]. Format should be name=value";
+            }
+
+            value = ary[i].substring(separatorIndex + 1, ary[i].length);
+            if (value === "true") {
+                value = true;
+            } else if (value === "false") {
+                value = false;
+            }
+
+            prop = ary[i].substring(0, separatorIndex);
+
+            //Convert to array if necessary
+            if (needArray[prop]) {
+                value = value.split(",");
+            }
+
+            if (build.hasDotPropMatch(prop)) {
+                stringDotToObj(result, prop, value);
+            } else {
+                result[prop] = value;
+            }
+        }
+        return result; //Object
+    };
+
+    build.makeAbsPath = function (path, absFilePath) {
+        //Add abspath if necessary. If path starts with a slash or has a colon,
+        //then already is an abolute path.
+        if (path.indexOf('/') !== 0 && path.indexOf(':') === -1) {
+            path = absFilePath +
+                   (absFilePath.charAt(absFilePath.length - 1) === '/' ? '' : '/') +
+                   path;
+            path = file.normalize(path);
+        }
+        return path.replace(lang.backSlashRegExp, '/');
+    };
+
+    build.makeAbsObject = function (props, obj, absFilePath) {
+        var i, prop;
+        if (obj) {
+            for (i = 0; i < props.length; i++) {
+                prop = props[i];
+                if (obj.hasOwnProperty(prop) && typeof obj[prop] === 'string') {
+                    obj[prop] = build.makeAbsPath(obj[prop], absFilePath);
+                }
+            }
+        }
+    };
+
+    /**
+     * For any path in a possible config, make it absolute relative
+     * to the absFilePath passed in.
+     */
+    build.makeAbsConfig = function (config, absFilePath) {
+        var props, prop, i;
+
+        props = ["appDir", "dir", "baseUrl"];
+        for (i = 0; i < props.length; i++) {
+            prop = props[i];
+
+            if (config[prop]) {
+                //Add abspath if necessary, make sure these paths end in
+                //slashes
+                if (prop === "baseUrl") {
+                    config.originalBaseUrl = config.baseUrl;
+                    if (config.appDir) {
+                        //If baseUrl with an appDir, the baseUrl is relative to
+                        //the appDir, *not* the absFilePath. appDir and dir are
+                        //made absolute before baseUrl, so this will work.
+                        config.baseUrl = build.makeAbsPath(config.originalBaseUrl, config.appDir);
+                    } else {
+                        //The dir output baseUrl is same as regular baseUrl, both
+                        //relative to the absFilePath.
+                        config.baseUrl = build.makeAbsPath(config[prop], absFilePath);
+                    }
+                } else {
+                    config[prop] = build.makeAbsPath(config[prop], absFilePath);
+                }
+
+                config[prop] = endsWithSlash(config[prop]);
+            }
+        }
+
+        build.makeAbsObject(["out", "cssIn"], config, absFilePath);
+        build.makeAbsObject(["startFile", "endFile"], config.wrap, absFilePath);
+    };
+
+    build.nestedMix = {
+        paths: true,
+        has: true,
+        hasOnSave: true,
+        pragmas: true,
+        pragmasOnSave: true
+    };
+
+    /**
+     * Mixes additional source config into target config, and merges some
+     * nested config, like paths, correctly.
+     */
+    function mixConfig(target, source) {
+        var prop, value;
+
+        for (prop in source) {
+            if (source.hasOwnProperty(prop)) {
+                //If the value of the property is a plain object, then
+                //allow a one-level-deep mixing of it.
+                value = source[prop];
+                if (typeof value === 'object' && value &&
+                        !lang.isArray(value) && !lang.isFunction(value) &&
+                        !lang.isRegExp(value)) {
+                    target[prop] = lang.mixin({}, target[prop], value, true);
+                } else {
+                    target[prop] = value;
+                }
+            }
+        }
+    }
+
+    /**
+     * Converts a wrap.startFile or endFile to be start/end as a string.
+     * the startFile/endFile values can be arrays.
+     */
+    function flattenWrapFile(wrap, keyName, absFilePath) {
+        var keyFileName = keyName + 'File';
+
+        if (typeof wrap[keyName] !== 'string' && wrap[keyFileName]) {
+            wrap[keyName] = '';
+            if (typeof wrap[keyFileName] === 'string') {
+                wrap[keyFileName] = [wrap[keyFileName]];
+            }
+            wrap[keyFileName].forEach(function (fileName) {
+                wrap[keyName] += (wrap[keyName] ? '\n' : '') +
+                    file.readFile(build.makeAbsPath(fileName, absFilePath));
+            });
+        } else if (typeof wrap[keyName] !== 'string') {
+            throw new Error('wrap.' + keyName + ' or wrap.' + keyFileName + ' malformed');
+        }
+    }
+
+    /**
+     * Creates a config object for an optimization build.
+     * It will also read the build profile if it is available, to create
+     * the configuration.
+     *
+     * @param {Object} cfg config options that take priority
+     * over defaults and ones in the build file. These options could
+     * be from a command line, for instance.
+     *
+     * @param {Object} the created config object.
+     */
+    build.createConfig = function (cfg) {
+        /*jslint evil: true */
+        var config = {}, buildFileContents, buildFileConfig, mainConfig,
+            mainConfigFile, mainConfigPath, prop, buildFile, absFilePath;
+
+        //Make sure all paths are relative to current directory.
+        absFilePath = file.absPath('.');
+        build.makeAbsConfig(cfg, absFilePath);
+        build.makeAbsConfig(buildBaseConfig, absFilePath);
+
+        lang.mixin(config, buildBaseConfig);
+        lang.mixin(config, cfg, true);
+
+        if (config.buildFile) {
+            //A build file exists, load it to get more config.
+            buildFile = file.absPath(config.buildFile);
+
+            //Find the build file, and make sure it exists, if this is a build
+            //that has a build profile, and not just command line args with an in=path
+            if (!file.exists(buildFile)) {
+                throw new Error("ERROR: build file does not exist: " + buildFile);
+            }
+
+            absFilePath = config.baseUrl = file.absPath(file.parent(buildFile));
+
+            //Load build file options.
+            buildFileContents = file.readFile(buildFile);
+            try {
+                buildFileConfig = eval("(" + buildFileContents + ")");
+                build.makeAbsConfig(buildFileConfig, absFilePath);
+
+                //Mix in the config now so that items in mainConfigFile can
+                //be resolved relative to them if necessary, like if appDir
+                //is set here, but the baseUrl is in mainConfigFile. Will
+                //re-mix in the same build config later after mainConfigFile
+                //is processed, since build config should take priority.
+                mixConfig(config, buildFileConfig);
+            } catch (e) {
+                throw new Error("Build file " + buildFile + " is malformed: " + e);
+            }
+        }
+
+        mainConfigFile = config.mainConfigFile || (buildFileConfig && buildFileConfig.mainConfigFile);
+        if (mainConfigFile) {
+            mainConfigFile = build.makeAbsPath(mainConfigFile, absFilePath);
+            if (!file.exists(mainConfigFile)) {
+                throw new Error(mainConfigFile + ' does not exist.');
+            }
+            try {
+                mainConfig = parse.findConfig(mainConfigFile, file.readFile(mainConfigFile));
+            } catch (configError) {
+                throw new Error('The config in mainConfigFile ' +
+                        mainConfigFile +
+                        ' cannot be used because it cannot be evaluated' +
+                        ' correctly while running in the optimizer. Try only' +
+                        ' using a config that is also valid JSON, or do not use' +
+                        ' mainConfigFile and instead copy the config values needed' +
+                        ' into a build file or command line arguments given to the optimizer.');
+            }
+            if (mainConfig) {
+                mainConfigPath = mainConfigFile.substring(0, mainConfigFile.lastIndexOf('/'));
+
+                //Add in some existing config, like appDir, since they can be
+                //used inside the mainConfigFile -- paths and baseUrl are
+                //relative to them.
+                if (config.appDir && !mainConfig.appDir) {
+                    mainConfig.appDir = config.appDir;
+                }
+
+                //If no baseUrl, then use the directory holding the main config.
+                if (!mainConfig.baseUrl) {
+                    mainConfig.baseUrl = mainConfigPath;
+                }
+
+                build.makeAbsConfig(mainConfig, mainConfigPath);
+                mixConfig(config, mainConfig);
+            }
+        }
+
+        //Mix in build file config, but only after mainConfig has been mixed in.
+        if (buildFileConfig) {
+            mixConfig(config, buildFileConfig);
+        }
+
+        //Re-apply the override config values. Command line
+        //args should take precedence over build file values.
+        mixConfig(config, cfg);
+
+        //Fix paths to full paths so that they can be adjusted consistently
+        //lately to be in the output area.
+        lang.eachProp(config.paths, function (value, prop) {
+            if (lang.isArray(value)) {
+                throw new Error('paths fallback not supported in optimizer. ' +
+                                'Please provide a build config path override ' +
+                                'for ' + prop);
+            }
+            config.paths[prop] = build.makeAbsPath(value, config.baseUrl);
+        });
+
+        //Set final output dir
+        if (config.hasOwnProperty("baseUrl")) {
+            if (config.appDir) {
+                config.dirBaseUrl = build.makeAbsPath(config.originalBaseUrl, config.dir);
+            } else {
+                config.dirBaseUrl = config.dir || config.baseUrl;
+            }
+            //Make sure dirBaseUrl ends in a slash, since it is
+            //concatenated with other strings.
+            config.dirBaseUrl = endsWithSlash(config.dirBaseUrl);
+        }
+
+        //Check for errors in config
+        if (config.main) {
+            throw new Error('"main" passed as an option, but the ' +
+                            'supported option is called "name".');
+        }
+        if (!config.name && !config.modules && !config.include && !config.cssIn) {
+            throw new Error('Missing either a "name", "include" or "modules" ' +
+                            'option');
+        }
+        if (config.cssIn && !config.out) {
+            throw new Error("ERROR: 'out' option missing.");
+        }
+        if (!config.cssIn && !config.baseUrl) {
+            //Just use the current directory as the baseUrl
+            config.baseUrl = './';
+        }
+        if (!config.out && !config.dir) {
+            throw new Error('Missing either an "out" or "dir" config value. ' +
+                            'If using "appDir" for a full project optimization, ' +
+                            'use "dir". If you want to optimize to one file, ' +
+                            'use "out".');
+        }
+        if (config.appDir && config.out) {
+            throw new Error('"appDir" is not compatible with "out". Use "dir" ' +
+                            'instead. appDir is used to copy whole projects, ' +
+                            'where "out" is used to just optimize to one file.');
+        }
+        if (config.out && config.dir) {
+            throw new Error('The "out" and "dir" options are incompatible.' +
+                            ' Use "out" if you are targeting a single file for' +
+                            ' for optimization, and "dir" if you want the appDir' +
+                            ' or baseUrl directories optimized.');
+        }
+
+        if (config.insertRequire && !lang.isArray(config.insertRequire)) {
+            throw new Error('insertRequire should be a list of module IDs' +
+                            ' to insert in to a require([]) call.');
+        }
+
+        if ((config.name || config.include) && !config.modules) {
+            //Just need to build one file, but may be part of a whole appDir/
+            //baseUrl copy, but specified on the command line, so cannot do
+            //the modules array setup. So create a modules section in that
+            //case.
+            config.modules = [
+                {
+                    name: config.name,
+                    out: config.out,
+                    create: config.create,
+                    include: config.include,
+                    exclude: config.exclude,
+                    excludeShallow: config.excludeShallow,
+                    insertRequire: config.insertRequire
+                }
+            ];
+        } else if (config.modules && config.out) {
+            throw new Error('If the "modules" option is used, then there ' +
+                            'should be a "dir" option set and "out" should ' +
+                            'not be used since "out" is only for single file ' +
+                            'optimization output.');
+        } else if (config.modules && config.name) {
+            throw new Error('"name" and "modules" options are incompatible. ' +
+                            'Either use "name" if doing a single file ' +
+                            'optimization, or "modules" if you want to target ' +
+                            'more than one file for optimization.');
+        }
+
+        if (config.out && !config.cssIn) {
+            //Just one file to optimize.
+
+            //Does not have a build file, so set up some defaults.
+            //Optimizing CSS should not be allowed, unless explicitly
+            //asked for on command line. In that case the only task is
+            //to optimize a CSS file.
+            if (!cfg.optimizeCss) {
+                config.optimizeCss = "none";
+            }
+        }
+
+        //Create a hash lookup for the stubModules config to make lookup
+        //cheaper later.
+        if (config.stubModules) {
+            config.stubModules._byName = {};
+            config.stubModules.forEach(function (id) {
+                config.stubModules._byName[id] = true;
+            });
+        }
+
+        //Get any wrap text.
+        try {
+            if (config.wrap) {
+                if (config.wrap === true) {
+                    //Use default values.
+                    config.wrap = {
+                        start: '(function () {',
+                        end: '}());'
+                    };
+                } else {
+                    flattenWrapFile(config.wrap, 'start', absFilePath);
+                    flattenWrapFile(config.wrap, 'end', absFilePath);
+                }
+            }
+        } catch (wrapError) {
+            throw new Error('Malformed wrap config: need both start/end or ' +
+                            'startFile/endFile: ' + wrapError.toString());
+        }
+
+        //Do final input verification
+        if (config.context) {
+            throw new Error('The build argument "context" is not supported' +
+                            ' in a build. It should only be used in web' +
+                            ' pages.');
+        }
+
+        //Set file.fileExclusionRegExp if desired
+        if (config.hasOwnProperty('fileExclusionRegExp')) {
+            if (typeof config.fileExclusionRegExp === "string") {
+                file.exclusionRegExp = new RegExp(config.fileExclusionRegExp);
+            } else {
+                file.exclusionRegExp = config.fileExclusionRegExp;
+            }
+        } else if (config.hasOwnProperty('dirExclusionRegExp')) {
+            //Set file.dirExclusionRegExp if desired, this is the old
+            //name for fileExclusionRegExp before 1.0.2. Support for backwards
+            //compatibility
+            file.exclusionRegExp = config.dirExclusionRegExp;
+        }
+
+        //Remove things that may cause problems in the build.
+        delete config.jQuery;
+        delete config.enforceDefine;
+        delete config.urlArgs;
+
+        return config;
+    };
+
+    /**
+     * finds the module being built/optimized with the given moduleName,
+     * or returns null.
+     * @param {String} moduleName
+     * @param {Array} modules
+     * @returns {Object} the module object from the build profile, or null.
+     */
+    build.findBuildModule = function (moduleName, modules) {
+        var i, module;
+        for (i = 0; i < modules.length; i++) {
+            module = modules[i];
+            if (module.name === moduleName) {
+                return module;
+            }
+        }
+        return null;
+    };
+
+    /**
+     * Removes a module name and path from a layer, if it is supposed to be
+     * excluded from the layer.
+     * @param {String} moduleName the name of the module
+     * @param {String} path the file path for the module
+     * @param {Object} layer the layer to remove the module/path from
+     */
+    build.removeModulePath = function (module, path, layer) {
+        var index = layer.buildFilePaths.indexOf(path);
+        if (index !== -1) {
+            layer.buildFilePaths.splice(index, 1);
+        }
+    };
+
+    /**
+     * Uses the module build config object to trace the dependencies for the
+     * given module.
+     *
+     * @param {Object} module the module object from the build config info.
+     * @param {Object} the build config object.
+     *
+     * @returns {Object} layer information about what paths and modules should
+     * be in the flattened module.
+     */
+    build.traceDependencies = function (module, config) {
+        var include, override, layer, context, baseConfig, oldContext,
+            registry, id, idParts, pluginId,
+            errMessage = '',
+            failedPluginMap = {},
+            failedPluginIds = [],
+            errIds = [],
+            errUrlMap = {},
+            errUrlConflicts = {},
+            hasErrUrl = false,
+            errUrl, prop;
+
+        //Reset some state set up in requirePatch.js, and clean up require's
+        //current context.
+        oldContext = require._buildReset();
+
+        //Grab the reset layer and context after the reset, but keep the
+        //old config to reuse in the new context.
+        baseConfig = oldContext.config;
+        layer = require._layer;
+        context = layer.context;
+
+        //Put back basic config, use a fresh object for it.
+        //WARNING: probably not robust for paths and packages/packagePaths,
+        //since those property's objects can be modified. But for basic
+        //config clone it works out.
+        require(lang.mixin({}, baseConfig, true));
+
+        logger.trace("\nTracing dependencies for: " + (module.name || module.out));
+        include = module.name && !module.create ? [module.name] : [];
+        if (module.include) {
+            include = include.concat(module.include);
+        }
+
+        //If there are overrides to basic config, set that up now.;
+        if (module.override) {
+            override = lang.mixin({}, baseConfig, true);
+            lang.mixin(override, module.override, true);
+            require(override);
+        }
+
+        //Figure out module layer dependencies by calling require to do the work.
+        require(include);
+
+        //Reset config
+        if (module.override) {
+            require(baseConfig);
+        }
+
+        //Check to see if it all loaded. If not, then stop, and give
+        //a message on what is left.
+        registry = context.registry;
+        for (id in registry) {
+            if (registry.hasOwnProperty(id) && id.indexOf('_@r') !== 0) {
+                if (id.indexOf('_unnormalized') === -1 && registry[id].enabled) {
+                    errIds.push(id);
+                    errUrl = registry[id].map.url;
+
+                    if (errUrlMap[errUrl]) {
+                        hasErrUrl = true;
+                        //This error module has the same URL as another
+                        //error module, could be misconfiguration.
+                        if (!errUrlConflicts[errUrl]) {
+                            errUrlConflicts[errUrl] = [];
+                            //Store the original module that had the same URL.
+                            errUrlConflicts[errUrl].push(errUrlMap[errUrl]);
+                        }
+                        errUrlConflicts[errUrl].push(id);
+                    } else {
+                        errUrlMap[errUrl] = id;
+                    }
+                }
+
+                //Look for plugins that did not call load()
+                idParts = id.split('!');
+                pluginId = idParts[0];
+                if (idParts.length > 1 && !failedPluginMap.hasOwnProperty(pluginId)) {
+                    failedPluginIds.push(pluginId);
+                    failedPluginMap[pluginId] = true;
+                }
+            }
+        }
+
+        if (errIds.length || failedPluginIds.length) {
+            if (failedPluginIds.length) {
+                errMessage += 'Loader plugin' +
+                    (failedPluginIds.length === 1 ? '' : 's') +
+                    ' did not call ' +
+                    'the load callback in the build: ' +
+                    failedPluginIds.join(', ') + '\n';
+            }
+            errMessage += 'Module loading did not complete for: ' + errIds.join(', ');
+
+            if (hasErrUrl) {
+                errMessage += '\nThe following modules share the same URL. This ' +
+                              'could be a misconfiguration if that URL only has ' +
+                              'one anonymous module in it:';
+                for (prop in errUrlConflicts) {
+                    if (errUrlConflicts.hasOwnProperty(prop)) {
+                        errMessage += '\n' + prop + ': ' +
+                                      errUrlConflicts[prop].join(', ');
+                    }
+                }
+            }
+            throw new Error(errMessage);
+        }
+
+        return layer;
+    };
+
+    /**
+     * Uses the module build config object to create an flattened version
+     * of the module, with deep dependencies included.
+     *
+     * @param {Object} module the module object from the build config info.
+     *
+     * @param {Object} layer the layer object returned from build.traceDependencies.
+     *
+     * @param {Object} the build config object.
+     *
+     * @returns {Object} with two properties: "text", the text of the flattened
+     * module, and "buildText", a string of text representing which files were
+     * included in the flattened module text.
+     */
+    build.flattenModule = function (module, layer, config) {
+
+        //Use override settings, particularly for pragmas
+        //Do this before the var readings since it reads config values.
+        if (module.override) {
+            config = lang.mixin({}, config, true);
+            lang.mixin(config, module.override, true);
+        }
+
+        var path, reqIndex, fileContents, currContents,
+            i, moduleName, shim, packageConfig,
+            parts, builder, writeApi,
+            context = layer.context,
+            buildFileContents = "",
+            namespace = config.namespace || '',
+            namespaceWithDot = namespace ? namespace + '.' : '',
+            stubModulesByName = (config.stubModules && config.stubModules._byName) || {},
+            onLayerEnds = [],
+            onLayerEndAdded = {};
+
+        //Start build output for the module.
+        buildFileContents += "\n" +
+                             (config.dir ? module._buildPath.replace(config.dir, "") : module._buildPath) +
+                             "\n----------------\n";
+
+        //If there was an existing file with require in it, hoist to the top.
+        if (layer.existingRequireUrl) {
+            reqIndex = layer.buildFilePaths.indexOf(layer.existingRequireUrl);
+            if (reqIndex !== -1) {
+                layer.buildFilePaths.splice(reqIndex, 1);
+                layer.buildFilePaths.unshift(layer.existingRequireUrl);
+            }
+        }
+
+        //Write the built module to disk, and build up the build output.
+        fileContents = "";
+        for (i = 0; i < layer.buildFilePaths.length; i++) {
+            path = layer.buildFilePaths[i];
+            moduleName = layer.buildFileToModule[path];
+
+            //If the moduleName is for a package main, then update it to the
+            //real main value.
+            packageConfig = layer.context.config.pkgs &&
+                            layer.context.config.pkgs[moduleName];
+            if (packageConfig) {
+                moduleName += '/' + packageConfig.main;
+            }
+
+            //Figure out if the module is a result of a build plugin, and if so,
+            //then delegate to that plugin.
+            parts = context.makeModuleMap(moduleName);
+            builder = parts.prefix && context.defined[parts.prefix];
+            if (builder) {
+                if (builder.onLayerEnd && !onLayerEndAdded[parts.prefix]) {
+                    onLayerEnds.push(builder);
+                    onLayerEndAdded[parts.prefix] = true;
+                }
+
+                if (builder.write) {
+                    writeApi = function (input) {
+                        fileContents += "\n" + addSemiColon(input);
+                        if (config.onBuildWrite) {
+                            fileContents = config.onBuildWrite(moduleName, path, fileContents);
+                        }
+                    };
+                    writeApi.asModule = function (moduleName, input) {
+                        fileContents += "\n" +
+                            addSemiColon(build.toTransport(namespace, moduleName, path, input, layer, {
+                                useSourceUrl: layer.context.config.useSourceUrl
+                            }));
+                        if (config.onBuildWrite) {
+                            fileContents = config.onBuildWrite(moduleName, path, fileContents);
+                        }
+                    };
+                    builder.write(parts.prefix, parts.name, writeApi);
+                }
+            } else {
+                if (stubModulesByName.hasOwnProperty(moduleName)) {
+                    //Just want to insert a simple module definition instead
+                    //of the source module. Useful for plugins that inline
+                    //all their resources.
+                    if (layer.context.plugins.hasOwnProperty(moduleName)) {
+                        //Slightly different content for plugins, to indicate
+                        //that dynamic loading will not work.
+                        currContents = 'define({load: function(id){throw new Error("Dynamic load not allowed: " + id);}});';
+                    } else {
+                        currContents = 'define({});';
+                    }
+                } else {
+                    currContents = file.readFile(path);
+                }
+
+                if (config.cjsTranslate) {
+                    currContents = commonJs.convert(path, currContents);
+                }
+
+                if (config.onBuildRead) {
+                    currContents = config.onBuildRead(moduleName, path, currContents);
+                }
+
+                if (namespace) {
+                    currContents = pragma.namespace(currContents, namespace);
+                }
+
+                currContents = build.toTransport(namespace, moduleName, path, currContents, layer, {
+                    useSourceUrl: config.useSourceUrl
+                });
+
+                if (packageConfig) {
+                    currContents = addSemiColon(currContents) + '\n';
+                    currContents += namespaceWithDot + "define('" +
+                                    packageConfig.name + "', ['" + moduleName +
+                                    "'], function (main) { return main; });\n";
+                }
+
+                if (config.onBuildWrite) {
+                    currContents = config.onBuildWrite(moduleName, path, currContents);
+                }
+
+                //Semicolon is for files that are not well formed when
+                //concatenated with other content.
+                fileContents += "\n" + addSemiColon(currContents);
+            }
+
+            buildFileContents += path.replace(config.dir, "") + "\n";
+            //Some files may not have declared a require module, and if so,
+            //put in a placeholder call so the require does not try to load them
+            //after the module is processed.
+            //If we have a name, but no defined module, then add in the placeholder.
+            if (moduleName && !layer.modulesWithNames[moduleName] && !config.skipModuleInsertion) {
+                shim = config.shim && config.shim[moduleName];
+                if (shim) {
+                    fileContents += '\n' + namespaceWithDot + 'define("' + moduleName + '", ' +
+                                     (shim.deps && shim.deps.length ?
+                                            build.makeJsArrayString(shim.deps) + ', ' : '') +
+                                     (shim.exportsFn ? shim.exportsFn() : 'function(){}') +
+                                     ');\n';
+                } else {
+                    fileContents += '\n' + namespaceWithDot + 'define("' + moduleName + '", function(){});\n';
+                }
+            }
+        }
+
+        if (onLayerEnds.length) {
+            onLayerEnds.forEach(function (builder) {
+                var path;
+                if (typeof module.out === 'string') {
+                    path = module.out;
+                } else if (typeof module._buildPath === 'string') {
+                    path = module._buildPath;
+                }
+                builder.onLayerEnd(function (input) {
+                    fileContents += "\n" + addSemiColon(input);
+                }, {
+                    name: module.name,
+                    path: path
+                });
+            });
+        }
+
+        //Add a require at the end to kick start module execution, if that
+        //was desired. Usually this is only specified when using small shim
+        //loaders like almond.
+        if (module.insertRequire) {
+            fileContents += '\n' + namespaceWithDot + 'require(["' + module.insertRequire.join('", "') + '"]);\n';
+        }
+
+        return {
+            text: config.wrap ?
+                    config.wrap.start + fileContents + config.wrap.end :
+                    fileContents,
+            buildText: buildFileContents
+        };
+    };
+
+    //Converts an JS array of strings to a string representation.
+    //Not using JSON.stringify() for Rhino's sake.
+    build.makeJsArrayString = function (ary) {
+        return '["' + ary.map(function (item) {
+            //Escape any double quotes, backslashes
+            return lang.jsEscape(item);
+        }).join('","') + '"]';
+    };
+
+    build.toTransport = function (namespace, moduleName, path, contents, layer, options) {
+        var baseUrl = layer && layer.context.config.baseUrl;
+
+        function onFound(info) {
+            //Only mark this module as having a name if not a named module,
+            //or if a named module and the name matches expectations.
+            if (layer && (info.needsId || info.foundId === moduleName)) {
+                layer.modulesWithNames[moduleName] = true;
+            }
+        }
+
+        //Convert path to be a local one to the baseUrl, useful for
+        //useSourceUrl.
+        if (baseUrl) {
+            path = path.replace(baseUrl, '');
+        }
+
+        return transform.toTransport(namespace, moduleName, path, contents, onFound, options);
+    };
+
+    return build;
+});
+
+    }
+
+
+    /**
+     * Sets the default baseUrl for requirejs to be directory of top level
+     * script.
+     */
+    function setBaseUrl(fileName) {
+        //Use the file name's directory as the baseUrl if available.
+        dir = fileName.replace(/\\/g, '/');
+        if (dir.indexOf('/') !== -1) {
+            dir = dir.split('/');
+            dir.pop();
+            dir = dir.join('/');
+            exec("require({baseUrl: '" + dir + "'});");
+        }
+    }
+
+    //If in Node, and included via a require('requirejs'), just export and
+    //THROW IT ON THE GROUND!
+    if (env === 'node' && reqMain !== module) {
+        setBaseUrl(path.resolve(reqMain ? reqMain.filename : '.'));
+
+        //Create a method that will run the optimzer given an object
+        //config.
+        requirejs.optimize = function (config, callback) {
+            if (!loadedOptimizedLib) {
+                loadLib();
+                loadedOptimizedLib = true;
+            }
+
+            //Create the function that will be called once build modules
+            //have been loaded.
+            var runBuild = function (build, logger) {
+                //Make sure config has a log level, and if not,
+                //make it "silent" by default.
+                config.logLevel = config.hasOwnProperty('logLevel') ?
+                                  config.logLevel : logger.SILENT;
+
+                //Reset build internals first in case this is part
+                //of a long-running server process that could have
+                //exceptioned out in a bad state. It is only defined
+                //after the first call though.
+                if (requirejs._buildReset) {
+                    requirejs._buildReset();
+                    requirejs._cacheReset();
+                }
+
+                var result = build(config);
+
+                //And clean up, in case something else triggers
+                //a build in another pathway.
+                requirejs._buildReset();
+                requirejs._cacheReset();
+
+                if (callback) {
+                    callback(result);
+                }
+            };
+
+            requirejs({
+                context: 'build'
+            }, ['build', 'logger'], runBuild);
+        };
+
+        requirejs.tools = {
+            useLib: function (contextName, callback) {
+                if (!callback) {
+                    callback = contextName;
+                    contextName = 'uselib';
+                }
+
+                if (!useLibLoaded[contextName]) {
+                    loadLib();
+                    useLibLoaded[contextName] = true;
+                }
+
+                var req = requirejs({
+                    context: contextName
+                });
+
+                req(['build'], function () {
+                    callback(req);
+                });
+            }
+        };
+
+        requirejs.define = define;
+
+        module.exports = requirejs;
+        return;
+    }
+
+    if (commandOption === 'o') {
+        //Do the optimizer work.
+        loadLib();
+
+        /**
+ * @license Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/requirejs for details
+ */
+
+/*
+ * Create a build.js file that has the build options you want and pass that
+ * build file to this file to do the build. See example.build.js for more information.
+ */
+
+/*jslint strict: false, nomen: false */
+/*global require: false */
+
+require({
+    baseUrl: require.s.contexts._.config.baseUrl,
+    //Use a separate context than the default context so that the
+    //build can use the default context.
+    context: 'build',
+    catchError: {
+        define: true
+    }
+},       ['env!env/args', 'build'],
+function (args,            build) {
+    build(args);
+});
+
+
+    } else if (commandOption === 'v') {
+        console.log('r.js: ' + version + ', RequireJS: ' + this.requirejsVars.require.version);
+    } else if (commandOption === 'convert') {
+        loadLib();
+
+        this.requirejsVars.require(['env!env/args', 'commonJs', 'env!env/print'],
+        function (args,           commonJs,   print) {
+
+            var srcDir, outDir;
+            srcDir = args[0];
+            outDir = args[1];
+
+            if (!srcDir || !outDir) {
+                print('Usage: path/to/commonjs/modules output/dir');
+                return;
+            }
+
+            commonJs.convertDir(args[0], args[1]);
+        });
+    } else {
+        //Just run an app
+
+        //Load the bundled libraries for use in the app.
+        if (commandOption === 'lib') {
+            loadLib();
+        }
+
+        setBaseUrl(fileName);
+
+        if (exists(fileName)) {
+            exec(readFile(fileName), fileName);
+        } else {
+            showHelp();
+        }
+    }
+
+}((typeof console !== 'undefined' ? console : undefined),
+  (typeof Packages !== 'undefined' ? Array.prototype.slice.call(arguments, 0) : []),
+  (typeof readFile !== 'undefined' ? readFile : undefined)));

@@ -11,21 +11,13 @@ task('docs', function() {
 
 desc('Runs mocha.js tests');
 task('test', function() {
-	require ("jake-utils");
-	
-	mochaTests({
-		directory: "test/",
-		files    : /.*\.js/,
-		coverage : true,
-		reporter : 'progress'
-	});
+	require ('jake-utils');
+	cmd('node', ['test/runner.js']);
 });
 
 desc('Optimize Javascript Code');
 task('dist', function() {
-	var commands = [
-		'r.js -o name=widgetery out=./dist/widgetery.js baseUrl=./lib'
-	];
+	var commands = [ 'vendor/r.js -o build.js' ];
 	
 	jake.exec(commands, function() {
 		complete();

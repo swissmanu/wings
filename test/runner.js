@@ -2,9 +2,8 @@ var fs = require('fs');
 var wrench = require('wrench');
 var path = require('path');
 var requirejs = require('requirejs');
-var Mocha = require('mocha');
 var should = require('should');
-
+var Mocha = require('mocha');
 
 requirejs.config({
 	nodeRequire: require
@@ -15,10 +14,7 @@ requirejs.config({
 	}
 });
 
-
 global.define = require('requirejs');
-
-
 
 
 var mocha = new Mocha({
@@ -26,14 +22,10 @@ var mocha = new Mocha({
 	,reporter: 'progress'
 });
 
-
-
-
 wrench.readdirSyncRecursive(__dirname+'/spec').filter(function(file) {
 	return (file.substr(-3) === '.js')
 }).forEach(function(file) {
 	mocha.addFile(path.join(__dirname+'/spec',file))
 });
-
 
 mocha.run();
