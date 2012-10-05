@@ -164,6 +164,29 @@ define(['widgetery/Container', 'helpers/Emitter', 'widgetery/Widget'], function 
 			});
 		});
 		
+		describe('Event Handler: dispatch', function() {
+			it('should emit the dispatchable event to itself', function(done) {
+				var container = new Container();
+				var event = 'emit_me!';
+				
+				container.on(event, function() { done(); });
+				container.emit('dispatch', {name: event});
+			});
+			
+			it('should bubble events upwards', function(done) {
+				var a = new Container();
+				var b = new Container();
+				var c = new Container();
+				
+				b.addWidget(c);
+				a.addWidget(b);
+				
+				a.on('dispatch', function() { done(); });
+				c.emit('dispatch', {name: 'xy'});
+			});
+			
+		});
+		
     });
 	
 });
