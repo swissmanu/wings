@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head>
+	<title>Widgetery Demo || Development</title>
+	<script type="text/javascript" src="../node_modules/requirejs/require.js"></script>
+	<script type="text/javascript">
+		require.config({
+			baseUrl: '../lib'
+			,paths: {
+				'demo': '../demo/'
+			}
+		});
+		require(['demo/demo']);
+	</script>
+</head>
+<body>
+	<canvas id="view" width="800" height="600"></canvas>	
+</body>
+</html>
