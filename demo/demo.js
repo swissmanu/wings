@@ -13,14 +13,34 @@ define('widgeterydemo', function(require,exports,module) {
 	canvasWrapper.addWidget(widget);
 
 	var lblText = new Label('Drag Me!');
-	lblText.setPosition(10,10);
+	lblText.setPosition(100,100);
 	lblText.setSize(100,20);
 	lblText.setDraggable(true);
 	lblText.on('dragRequest', function(acceptCallback, cancelCallback) {
 		acceptCallback(this, 'data yay');
 	});
-	lblText.on('dragged', function(position,source) {
-		lblText.setPosition(position.left, position.top);
+	
+	var xDiff = -1;
+	var yDiff = -1;
+	
+	lblText.on('dragged', function(absolutePosition,source) {
+		
+		var relativeLeft = absolutePosition.left - widget.getLeft() - source.getLeft();
+		
+		parentPos = {
+			left: 10
+			,top: 10
+		};
+		
+		if(xDiff === -1) {
+			//xDiff = absolutePosition.left - source.getLeft() - parentPos.left;
+			//yDiff = absolutePosition.top - source.getTop() - parentPos.top;
+		}
+		
+		var left = absolutePosition.left - xDiff - parentPos.left;
+		var top = absolutePosition.top - yDiff - parentPos.top;
+		
+		lblText.setPosition(left, top);
 		widget.redraw();
 	});
 
