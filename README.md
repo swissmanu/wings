@@ -14,5 +14,11 @@ Test specifications are implemented using *mocha* and *Chai Assertion Library*.
 Please use [should](http://chaijs.com/guide/styles/#styles) assertions.
 
 ## Demo
-After building using `jake dist`, a short demonstration how to use Widgetery
-is available under `demo/inline.html`.
+A short demonstration of Widgetery's features is implemented in `demo/demo.js`.
+You can run this demo in two different ways. Load one of the following files in
+your browser:
+
+* `demo/dev.html` loads each module from its own file dynamically. Perfect for
+  trying out your latest code modifications.
+* `demo/dist.html` fetchs the distributable version of Widgetery for running
+  the demo. Make sure you run `jake dist` before you open this demonstration.
