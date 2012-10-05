@@ -18,7 +18,7 @@
 		,"helpers/Emitter"
 	]
 
-	,name: "../vendor/almond"
+	,name: "../node_modules/almond/almond"
 	,optimize: "uglify"
 
 })
