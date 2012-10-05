@@ -27,14 +27,26 @@ define(['helpers/Emitter'], function(Emitter) {
 		});
 		
 		describe('emit()', function() {
-			after(function() {
-				emitter.off(event1);
-			});
-			
 			it('should emit an event', function(done) {
-				emitter.on(event1, function() { done(); });
+				emitter.once(event1, function() { done(); });
 				emitter.emit(event1);
 			});
+			
+			it('should return true, if an event listener does not return any value', function() {
+				emitter.once(event1, function() {});
+				emitter.emit(event1).should.be.true;
+			});
+			
+			it('should return true, if an event listener returns true', function() {
+				emitter.once(event1, function() { return true; });
+				emitter.emit(event1).should.be.true;
+			});
+			
+			it('should return false, if an event listener wants to stop event processing', function() {
+				emitter.once(event1, function() { return false; });
+				emitter.emit(event1).should.be.false;
+			});
+			
 		});
 		
 	});
