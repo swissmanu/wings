@@ -4,18 +4,30 @@ var requirejs = require('requirejs');
 var Mocha = require('mocha');
 var chai = require('chai');
 
+/* Code Coverage Report? */
+var libPath = path.join('..', 'lib');
+var reporter = 'progress';
+
+process.argv.forEach(function(value, index, array) {
+	if(value === '--coverage') {
+		libPath = './coverage-tmp/';
+		reporter = 'html-cov';
+	}
+});
+
+/* Setup: */
 requirejs.config({
 	nodeRequire: require
 	,baseUrl: __dirname
 	,paths: {
-		widgetery: '../lib/widgetery'
-		,helpers: '../lib/helpers'
+		widgetery: path.join(libPath, 'widgetery')
+		,helpers: path.join(libPath, 'helpers')
 	}
 });
 
 var mocha = new Mocha({
 	ui: 'bdd'
-	,reporter: 'progress'
+	,reporter: reporter
 });
 
 global.define = require('requirejs');
@@ -23,11 +35,15 @@ global.assert = chai.assert;
 global.expect = chai.expect;
 global.should = chai.should();
 
+/* Look for the files: */
 directoryWalker(__dirname+'/spec')
 	.filter(function(file) { return (file.substr(-3) === '.js') })
 	.forEach(function(file) { mocha.addFile(file); });
 	
+/* Run Tests: */
 mocha.run();
+
+
 
 
 /** Function: directoryWalker(root)

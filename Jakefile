@@ -1,3 +1,5 @@
+require('jake-utils');
+
 desc('Create Documentation using NaturalDocs');
 task('docs', function() {
 	var commands = [
@@ -9,10 +11,15 @@ task('docs', function() {
 	}, {stdout: true});
 });
 
-desc('Run Tests');
+desc('Run all tests');
 task('test', function() {
-	require('jake-utils');
 	cmd('node', ['test/runner.js']);
+});
+
+desc('Run all tests and create a code coverage report under test/coverage.html');
+task('test-coverage', function() {
+	cmd('jscoverage', ['--no-highlight','lib','test/coverage-tmp']);
+	cmd('node', ['test/runner.js','--coverage'], 'test/coverage.html');
 });
 
 desc('Build Widgetery Distributable');
