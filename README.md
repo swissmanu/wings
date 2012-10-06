@@ -20,10 +20,9 @@ Please use [should](http://chaijs.com/guide/styles/#styles) assertions.
 If you have [jscoverage](http://siliconforks.com/jscoverage/) installed on your
 machine, you can create detailed test code coverage reports using the `test-coverage`
 Jake task.
-	
 This will create an HTML file under `test/coverage.html` containing the report.
 
-One of the most simple ways to install `jscoverage` is using [Homebrew](http://mxcl.github.com/homebrew/):
+The most simple way to install `jscoverage` works via [Homebrew](http://mxcl.github.com/homebrew/):
 
 	brew install jscoverage
 
