@@ -13,36 +13,26 @@ define(['widgetery/Widget', 'widgetery/Container'], function (Widget, Container)
 				widget.should.be.instanceof(Widget);
 			});
 			
-			it('should trigger a drawRequest event when moved event was detected', function(done) {
-				widget.once('drawRequest', function() { done(); });
-				widget.emit('moved');
+			it('should trigger a widget:drawrequest event when widget:moved event was detected', function(done) {
+				widget.once('widget:drawrequest', function() { done(); });
+				widget.dispatchEvent('widget:moved');
 			});
 			
-			it('should trigger a drawRequest event when resized event was detected', function(done) {
-				widget.once('drawRequest', function() { done(); });
-				widget.emit('resized');
+			it('should trigger a widget:drawrequest event when widget:resized event was detected', function(done) {
+				widget.once('widget:drawrequest', function() { done(); });
+				widget.dispatchEvent('widget:resized');
 			});
 			
-			it('should trigger a drawRequest event when stateChanged event was detected', function(done) {
-				widget.once('drawRequest', function() { done(); });
-				widget.emit('stateChanged');
+			it('should trigger a widget:drawrequest event when widget:statechanged event was detected', function(done) {
+				widget.once('widget:drawrequest', function() { done(); });
+				widget.dispatchEvent('widget:statechanged');
 			});
 		});
-
-		/*
-		describe('drawWidget()', function() {
-			it('should throw an Error telling drawWidget() should be overwritten', function() {
-				(function() {
-					new Widget().drawWidget();
-				}).should.throw('Overwrite Widget.drawWidget(ctx)!');
-			});
-		});
-		*/
 		
 		describe('redraw()', function() {
-			it('should trigger a drawRequest event', function(done) {
+			it('should trigger a widget:drawrequest event', function(done) {
 				var widget = new Widget();
-				widget.once('drawRequest', function() { done(); });
+				widget.once('widget:drawrequest', function() { done(); });
 				widget.redraw();
 			});
 		});
@@ -60,9 +50,9 @@ define(['widgetery/Widget', 'widgetery/Container'], function (Widget, Container)
 				widget.getTop().should.be.equal(top);
 			});
 			
-			it('should trigger a moved event', function(done) {
-				widget.once('moved', function(oldPosition, newPosition, widget) {
-					if(newPosition.top === top) done();
+			it('should trigger a widget:moved event', function(done) {
+				widget.once('widget:moved', function(event) {
+					if(event.newPosition.top === top) done();
 				});
 				widget.setTop(top);
 			});
@@ -90,9 +80,9 @@ define(['widgetery/Widget', 'widgetery/Container'], function (Widget, Container)
 				widget.getLeft().should.be.equal(left);
 			});
 			
-			it('should trigger a moved event', function(done) {
-				widget.once('moved', function(oldPosition, newPosition, widget) {
-					if(newPosition.left === left) done();
+			it('should trigger a widget:moved event', function(done) {
+				widget.once('widget:moved', function(event) {
+					if(event.newPosition.left === left) done();
 				});
 				widget.setLeft(left);
 			});
@@ -121,9 +111,9 @@ define(['widgetery/Widget', 'widgetery/Container'], function (Widget, Container)
 				widget.getPosition().should.be.eql({left: left, top: top});
 			});
 			
-			it('should trigger a moved event', function(done) {
-				widget.once('moved', function(oldPosition, newPosition, widget) {
-					if(newPosition.left === left && newPosition.top === top) done();
+			it('should trigger a widget:moved event', function(done) {
+				widget.once('widget:moved', function(event) {
+					if(event.newPosition.left === left && event.newPosition.top === top) done();
 				});
 				widget.setPosition(left, top);
 			});
@@ -152,9 +142,9 @@ define(['widgetery/Widget', 'widgetery/Container'], function (Widget, Container)
 				widget.getWidth().should.be.equal(width);
 			});
 			
-			it('should trigger a resized event', function(done) {
-				widget.once('resized', function(oldSize, newSize, widget) {
-					if(newSize.width === width) done();
+			it('should trigger a widget:resized event', function(done) {
+				widget.once('widget:resized', function(event) {
+					if(event.newSize.width === width) done();
 				});
 				widget.setWidth(width);
 			});
@@ -182,9 +172,9 @@ define(['widgetery/Widget', 'widgetery/Container'], function (Widget, Container)
 				widget.getHeight().should.be.equal(height);
 			});
 			
-			it('should trigger a resized event', function(done) {
-				widget.once('resized', function(oldSize, newSize, widget) {
-					if(newSize.height === height) done();
+			it('should trigger a widget:resized event', function(done) {
+				widget.once('widget:resized', function(event) {
+					if(event.newSize.height === height) done();
 				});
 				widget.setHeight(height);
 			});
@@ -213,9 +203,9 @@ define(['widgetery/Widget', 'widgetery/Container'], function (Widget, Container)
 				widget.getSize().should.be.eql({width: width, height: height});
 			});
 			
-			it('should trigger a resized event', function(done) {
-				widget.once('resized', function(oldSize, newSize, widget) {
-					if(newSize.width === width && newSize.height === height) done();
+			it('should trigger a widget:resized event', function(done) {
+				widget.once('widget:resized', function(event) {
+					if(event.newSize.width === width && event.newSize.height === height) done();
 				});
 				widget.setSize(width, height);
 			});
@@ -267,10 +257,10 @@ define(['widgetery/Widget', 'widgetery/Container'], function (Widget, Container)
 				widget.getState().should.be.equal(disabled);
 			});
 			
-			it('should trigger a stateChanged event', function(done) {
+			it('should trigger a widget:statechanged event', function(done) {
 				var disabled = false;
-				widget.once('stateChanged', function(oldState, newState, widget) {
-					if(newState === disabled) done();
+				widget.once('widget:statechanged', function(event) {
+					if(event.newState === disabled) done();
 				});
 				widget.setState(disabled);
 			});

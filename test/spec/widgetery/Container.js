@@ -25,10 +25,10 @@ define(['widgetery/Container', 'helpers/Emitter', 'widgetery/Widget'], function 
 				container.getParent().should.be.equal(parent);
 			});
 			
-			it('should trigger a parentChanged event', function(done) {
+			it('should trigger a container:parentchanged event', function(done) {
 				var parent = new Container();
-				container.once('parentChanged', function(oldParent, newParent, container) {
-					if(newParent === parent) { done(); }
+				container.once('container:parentchanged', function(event) {
+					if(event.newParent === parent) done();
 				});
 				container.setParent(parent);
 			});
@@ -81,19 +81,11 @@ define(['widgetery/Container', 'helpers/Emitter', 'widgetery/Widget'], function 
 				should.not.exist(oldParent.getWidget(widget));
 			});
 			
-			it('should trigger a widgetAdded event', function(done) {
-				container.once('widgetAdded', function(addedWidget) {
-					if(addedWidget === widget) { done(); }
+			it('should trigger a container:widgetadded event', function(done) {
+				container.once('container:widgetadded', function(event) {
+					if(event.widget === widget) { done(); }
 				});
 				container.addWidget(widget);
-			});
-			
-			it('should trigger a drawRequest event when a child widget emits one', function(done) {
-				container.once('drawRequest', function(widgetToDraw) {
-					if(widgetToDraw === widget) { done(); }
-				});
-				container.addWidget(widget);
-				widget.emit('drawRequest', widget);
 			});
 			
 		});
@@ -118,9 +110,9 @@ define(['widgetery/Container', 'helpers/Emitter', 'widgetery/Widget'], function 
 				container.getWidgetCount().should.be.equal(0);
 			});
 			
-			it('should trigger a widgetRemoved event', function(done) {
-				container.once('widgetRemoved', function(removedWidget) {
-					if(removedWidget === widget) { done(); }
+			it('should trigger a container:widgetremoved event', function(done) {
+				container.once('container:widgetremoved', function(event) {
+					if(event.removedWidget === widget) { done(); }
 				});
 				container.removeWidget(widget);
 			});
@@ -184,7 +176,6 @@ define(['widgetery/Container', 'helpers/Emitter', 'widgetery/Widget'], function 
 				a.on('dispatch', function() { done(); });
 				c.emit('dispatch', {name: 'xy'});
 			});
-			
 		});
 		
     });

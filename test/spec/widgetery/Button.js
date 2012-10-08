@@ -9,14 +9,14 @@ define(['widgetery/Button', 'widgetery/MouseWidget'], function (Button, MouseWid
 		describe('Event Handlers', function() {
 			var button = new Button();
 			
-			it('should trigger a drawRequest event when detecting a textChanged event', function(done) {
-				button.once('drawRequest', function(widget) { done(); });
-				button.emit('textChanged', '1', '2', button);
+			it('should trigger a drawRequest event when detecting a button:textchanged event', function(done) {
+				button.once('widget:drawrequest', function(widget) { done(); });
+				button.dispatchEvent('button:textchanged', {oldText: '1', newText: '2'});
 			});
 			
-			it('should trigger a drawRequest event when detecting a iconChanged event', function(done) {
-				button.once('drawRequest', function(widget) { done(); });
-				button.emit('iconChanged', function(){}, function(){}, button);
+			it('should trigger a drawRequest event when detecting a button:iconchanged event', function(done) {
+				button.once('widget:drawrequest', function(widget) { done(); });
+				button.dispatchEvent('button:iconchanged', {oldIcon: function(){}, newIcon: function(){}});
 			});
 		});
 
@@ -53,9 +53,9 @@ define(['widgetery/Button', 'widgetery/MouseWidget'], function (Button, MouseWid
 				button.getText().should.be.equal(text);
 			});
 			
-			it('should trigger a textChanged event', function(done) {
-				button.once('textChanged', function(oldText, newText, widget) {
-					if(newText === newText) { done(); }
+			it('should trigger a button:textchanged event', function(done) {
+				button.once('button:textchanged', function(event) {
+					if(event.newText === text) { done(); }
 				});
 				button.setText(text);
 			});
@@ -84,9 +84,9 @@ define(['widgetery/Button', 'widgetery/MouseWidget'], function (Button, MouseWid
 				button.getIcon().should.be.equal(icon);
 			});
 			
-			it('should trigger a iconChanged event', function(done) {
-				button.once('iconChanged', function(oldIcon, newIcon, widget) {
-					if(newIcon === icon) { done(); }
+			it('should trigger a button:iconchanged event', function(done) {
+				button.once('button:iconchanged', function(event) {
+					if(event.newIcon === icon) { done(); }
 				});
 				button.setIcon(icon);
 			});
