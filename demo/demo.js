@@ -16,16 +16,18 @@ define('widgeterydemo', function(require,exports,module) {
 	lblText.setPosition(100,100);
 	lblText.setSize(100,20);
 	lblText.setDraggable(true);
-	lblText.on('dragRequest', function(acceptCallback, cancelCallback) {
-		acceptCallback(this, 'data yay');
+	lblText.on('widget:dragrequest', function(event) {
+		event.acceptCallback(this, 'data yay');
+		event.stopBubbling();
 	});
 	
 	var xDiff = -1;
 	var yDiff = -1;
 	
-	lblText.on('dragged', function(absolutePosition,source) {
-		
-		var relativeLeft = absolutePosition.left - widget.getLeft() - source.getLeft();
+	lblText.on('mouse:drag', function(event) {
+		var absolutePosition = event.absolutePosition;
+		//var relativeLeft = absolutePosition.left - widget.getLeft() - source.getLeft();
+		var relativeLeft = absolutePosition.left - lblText.getLeft() - lblText.getLeft();
 		
 		parentPos = {
 			left: 10
