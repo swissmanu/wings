@@ -20,18 +20,13 @@ define('widgeterydemo', function(require,exports,module) {
 		if(widgetToDrag !== parent) {
 			event.acceptCallback(parent,widgetToDrag);
 			event.stopBubbling();
-			initialClick = event.absolutePosition;
+			initialClick = canvasWrapper.convertAbsoluteToRelativePosition(event.absolutePosition,widgetToDrag);
 		}
 	});
 	parent.on('mouse:drag', function(event) {
-		var parentLeft = 10;
-		var parentTop = 10;
-		var left = event.absolutePosition.left - parentLeft;
-		var top = event.absolutePosition.top - parentTop;
-		
-		widgetToDrag.setPosition(left, top);
+		var position = canvasWrapper.convertAbsoluteToRelativePosition(event.absolutePosition, parent);
+		widgetToDrag.setPosition(position.left-initialClick.left, position.top-initialClick.top);
 	});
-	
 
 	// Add some Labels:
 	for(var i = 0, l = 5; i<l; i++) {
