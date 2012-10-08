@@ -47,29 +47,21 @@ Title: Widgetery
 # --------------------------------------------------------------------------
 
 
-File: Controller  (controllers/Controller.js)
+File: Emitter  (helpers/Emitter.js)
 
-Group: Helpers  {
+Group: Widgetery  {
 
-   File: Emitter  (helpers/Emitter.js)
-   File: Pacemaker  (helpers/Pacemaker.js)
-
-   Group: Widgetery  {
-
-      File: Button  (helpers/widgetery/Button.js)
-      File: CanvasWrapper  (helpers/widgetery/CanvasWrapper.js)
-      File: Container  (helpers/widgetery/Container.js)
-      File: DefaultStrategy  (helpers/widgetery/DefaultStrategy.js)
-      File: DragAndDropStrategy  (helpers/widgetery/DragAndDropStrategy.js)
-      File: Label  (helpers/widgetery/Label.js)
-      File: MouseStrategy  (helpers/widgetery/MouseStrategy.js)
-      File: MouseWidget  (helpers/widgetery/MouseWidget.js)
-      File: Widget  (helpers/widgetery/Widget.js)
-      }  # Group: Widgetery
-
-   }  # Group: Helpers
-
-File: Model  (models/Model.js)
+   File: Button  (widgetery/Button.js)
+   File: CanvasWrapper  (widgetery/CanvasWrapper.js)
+   File: Container  (widgetery/Container.js)
+   File: DefaultStrategy  (widgetery/DefaultStrategy.js)
+   File: DragAndDropStrategy  (widgetery/DragAndDropStrategy.js)
+   File: Label  (widgetery/Label.js)
+   File: MouseStrategy  (widgetery/MouseStrategy.js)
+   File: MouseWidget  (widgetery/MouseWidget.js)
+   File: Rectangle  (widgetery/Rectangle.js)
+   File: Widget  (widgetery/Widget.js)
+   }  # Group: Widgetery
 
 Group: Index  {
 
