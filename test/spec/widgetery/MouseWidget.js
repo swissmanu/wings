@@ -18,12 +18,14 @@ define(['widgetery/MouseWidget', 'widgetery/Widget'], function (MouseWidget, Wid
 			var mouseWidget = new MouseWidget();
 			
 			it('should return true after a mouse:enter event was received', function() {
-				mouseWidget.emit('dispatch',{name:'mouse:enter'});
+				var enterEvent = mouseWidget.createDispatchableEvent('mouse:enter');
+				mouseWidget.emit('dispatch', enterEvent);
 				mouseWidget.isMouseOver().should.be.true;
 			});
 			
-			it('should return false after a native_mouseExited event was received', function() {
-				mouseWidget.emit('dispatch',{name:'mouse:exit'});
+			it('should return false after a mouse:exit event was received', function() {
+				var exitEvent = mouseWidget.createDispatchableEvent('mouse:exit');
+				mouseWidget.emit('dispatch',exitEvent);
 				mouseWidget.isMouseOver().should.be.false;
 			});
 		});
