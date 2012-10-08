@@ -6,53 +6,36 @@ define('widgeterydemo', function(require,exports,module) {
 
 	var canvas = document.getElementById('view');
 	var canvasWrapper = new CanvasWrapper(canvas);
-
-	var widget = new Rectangle();
-	widget.setPosition(10,10);
-	widget.setSize(500,500);
-	canvasWrapper.addWidget(widget);
-
-	var lblText = new Label('Drag Me!');
-	lblText.setPosition(100,100);
-	lblText.setSize(100,20);
-	lblText.setDraggable(true);
-	lblText.on('widget:dragrequest', function(event) {
-		event.acceptCallback(this, 'data yay');
+	var parent = new Rectangle();
+	
+	// Prepare parent:
+	var widgetToDrag = undefined;
+	parent.setPosition(10,10);
+	parent.setSize(500,500);
+	parent.setDraggable(true);
+	parent.on('mouse:dragrequest', function(event) {
+		widgetToDrag = canvasWrapper.searchDeepestWidgetOnPosition(event.absolutePosition);
+		
+		if(widgetToDrag !== parent) {
+			event.acceptCallback(parent,widgetToDrag);
+			event.stopBubbling();
+		}
+	});
+	parent.on('mouse:drag', function(event) {
+		widgetToDrag.setPosition(event.absolutePosition.left, event.absolutePosition.top);
+		canvasWrapper.redraw();
 		event.stopBubbling();
 	});
 	
-	var xDiff = -1;
-	var yDiff = -1;
+
+	// Add some Labels:
+	for(var i = 0, l = 5; i<l; i++) {
+		var label = new Label('Drag Me! I\'m #' + i);
+		label.setPosition(20,i*50+20);
+		label.setSize(150,20);
+		parent.addWidget(label);
+	}
 	
-	lblText.on('mouse:drag', function(event) {
-		var absolutePosition = event.absolutePosition;
-		//var relativeLeft = absolutePosition.left - widget.getLeft() - source.getLeft();
-		var relativeLeft = absolutePosition.left - lblText.getLeft() - lblText.getLeft();
-		
-		parentPos = {
-			left: 10
-			,top: 10
-		};
-		
-		if(xDiff === -1) {
-			//xDiff = absolutePosition.left - source.getLeft() - parentPos.left;
-			//yDiff = absolutePosition.top - source.getTop() - parentPos.top;
-		}
-		
-		var left = absolutePosition.left - xDiff - parentPos.left;
-		var top = absolutePosition.top - yDiff - parentPos.top;
-		
-		lblText.setPosition(left, top);
-		widget.redraw();
-	});
-
-	var lblNotDraggable = new Label('Cant touch me');
-	lblNotDraggable.setPosition(50,50);
-	lblNotDraggable.setSize(100,20);
-
-	widget.addWidget(lblNotDraggable);
-	widget.addWidget(lblText);
-
-
+	canvasWrapper.addWidget(parent);
 	canvasWrapper.redraw();
 });
