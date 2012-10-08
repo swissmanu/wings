@@ -79,6 +79,53 @@ define(['widgetery/CanvasWrapper', 'widgetery/Widget'], function (CanvasWrapper,
 			});
 		});
 		
+		describe('convertAbsoluteToRelativePosition()', function() {
+			var canvasWrapper;
+			var widgetA;
+			var widgetB;
+			var widgetC;
+			
+			beforeEach(function() {
+ 				canvasWrapper = new CanvasWrapper(mockCanvas);
+
+				/* Widget Hierarchy under test:
+				 * +--------------------------+ A
+				 * |                          |
+				 * +----------------+ B       |
+				 * |                |         |
+				 * |                |         |
+				 * |            +---+ C       |
+				 * |            | X |         |
+				 * +------------+---+---------+
+				 *
+				 * X = Absolute Position to Calculate
+				 */
+				widgetA = new Widget();
+				widgetB = new Widget();
+				widgetC = new Widget();
+				
+				widgetA.setPosition(0,0);
+				widgetA.setSize(100,50);
+				widgetB.setPosition(0,10);
+				widgetB.setSize(50,40);
+				widgetC.setPosition(30,30);
+				widgetC.setSize(10,10);
+				
+				widgetB.addWidget(widgetC);
+				widgetA.addWidget(widgetB);
+				canvasWrapper.addWidget(widgetA);
+			});
+			
+			it('should return the correct relative coordinate', function() {
+				var absolute = { left: 35, top: 45 };
+				var relative = { left: 5, top: 5 };
+				
+				canvasWrapper.convertAbsoluteToRelativePosition(absolute, widgetC)
+					.should.eql(relative);
+			});
+			
+		});
+		
     });
 	
 });
