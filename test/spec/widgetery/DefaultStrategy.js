@@ -1,8 +1,10 @@
-define(['widgetery/DefaultStrategy','widgetery/MouseStrategy'], function (DefaultStrategy, MouseStrategy) {
+define(['widgetery/DefaultStrategy','widgetery/MouseStrategy','widgetery/Widget'], function (DefaultStrategy, MouseStrategy,Widget) {
 
     describe('DefaultStrategy', function() {
+		var deepestWidget = new Widget();
 		var MockCanvasWrapper = function MockCanvasWrapper() {
 			this.searchMouseWidgetsOnPosition = function() {};
+			this.searchDeepestWidgetOnPosition = function() { return deepestWidget; };
 			this.emit = function() {};
 		};
 	
@@ -32,6 +34,13 @@ define(['widgetery/DefaultStrategy','widgetery/MouseStrategy'], function (Defaul
 					new DefaultStrategy(wrapperMock).mouseMoved(position);
 				}).should.not.throw();
 			});
+			
+			it('should emit a dispatch event "mouse:move" to the deepest widget', function(done) {
+				var strategy = new DefaultStrategy(wrapperMock);
+				deepestWidget.once('mouse:move', function(event) { done(); });
+				strategy.mouseMoved(position);
+			});
+			
 		});
 		
 		describe('mouseButtonPressed', function() {
@@ -43,6 +52,12 @@ define(['widgetery/DefaultStrategy','widgetery/MouseStrategy'], function (Defaul
 				(function() {
 					new DefaultStrategy(wrapperMock).mouseButtonPressed(button, position);
 				}).should.not.throw();
+			});
+			
+			it('should emit a dispatch event "mouse:down" to the deepest widget', function(done) {
+				var strategy = new DefaultStrategy(wrapperMock);
+				deepestWidget.once('mouse:down', function(event) { done(); });
+				strategy.mouseButtonPressed(button, position);
 			});
 		});
 		
@@ -56,6 +71,12 @@ define(['widgetery/DefaultStrategy','widgetery/MouseStrategy'], function (Defaul
 					new DefaultStrategy(wrapperMock).mouseButtonReleased(button, position);
 				}).should.not.throw();
 			});
+			
+			it('should emit a dispatch event "mouse:up" to the deepest widget', function(done) {
+				var strategy = new DefaultStrategy(wrapperMock);
+				deepestWidget.once('mouse:up', function(event) { done(); });
+				strategy.mouseButtonReleased(button, position);
+			});
 		});
 		
 		describe('mouseButtonClicked', function() {
@@ -67,6 +88,12 @@ define(['widgetery/DefaultStrategy','widgetery/MouseStrategy'], function (Defaul
 				(function() {
 					new DefaultStrategy(wrapperMock).mouseButtonClicked(button, position);
 				}).should.not.throw();
+			});
+			
+			it('should emit a dispatch event "mouse:click" to the deepest widget', function(done) {
+				var strategy = new DefaultStrategy(wrapperMock);
+				deepestWidget.once('mouse:click', function(event) { done(); });
+				strategy.mouseButtonClicked(button, position);
 			});
 		});
 		
