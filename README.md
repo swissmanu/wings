@@ -11,6 +11,7 @@ Currently the completion of the event engine is my main task.*
 The most effective way to integrate Wings is using the source directly by linking
 it into your RequireJS environment.
 
+#### Step 1: Install dependencies
 To do so, add Wings as dependency to your `package.json`:
 
 ````javascript
@@ -20,7 +21,10 @@ To do so, add Wings as dependency to your `package.json`:
 ````
 
 Run `npm install` in your projects root directory to fetch the latest version
-of Wings. Only one step left: Add Wings to the `paths` section of RequireJS:
+of Wings.
+
+#### Step 2: Configure RequireJS
+Only one thing left: Add Wings to the `paths` section of RequireJS:
 
 ````javascript
 requirejs.config({
@@ -29,13 +33,15 @@ requirejs.config({
 	}
 });
 ````
-	
+
+#### Ready to use
 Thats it! RequireJS should now be able to include any of Wings modules:
 
 ````javascript
 var CanvasWrapper = require('wings/CanvasWrapper');
 var canvasWrapper = new CanvasWrapper(document.getElementById('view'));
 ````
+
 	
 ### Standalone Library
 In case you are not using a sophisticated RequireJS ecosystem, you can use the
@@ -43,11 +49,15 @@ built version of Wings. It includes the [almond](https://github.com/jrburke/almo
 module loader and provides a global object which you can use to access Wings'
 modules.
 
-1. Clone the Wings repository to your local machine
-2. Install all dependencies using `cd Wings && npm install`
-3. Build your version of Wings with `jake dist`
-4. Pick up `dist/wings.js` and integrate it as any other javascript file into
-   your webpage
+#### Step 1: Build Wings
+Clone the Wings repository to your local machine and install all dependencies
+using `npm install`.
+
+Build your version of Wings with `jake dist`
+
+#### Step 2: Add to your webpage
+Pick up `dist/wings.js` and integrate it as any other javascript file into
+your webpage:
 
 ````html
 <head>
@@ -55,12 +65,12 @@ modules.
 </head>
 ````
 
-5. You have access to Wings' modules using the global available `wings` object:
+#### Ready to use
+You have access to Wings' modules using the global available `wings` object:
 
 ````javascript
 var canvasWrapper = new wings.CanvasWrapper(ocument.getElementById('view'));
 ````
-
 
 
 ## Jake
