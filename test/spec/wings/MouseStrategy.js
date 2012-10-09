@@ -1,4 +1,4 @@
-define(['wings/MouseStrategy', 'helpers/Emitter'], function (MouseStrategy, Emitter) {
+define(['wings/MouseStrategy', 'wings/Emitter'], function (MouseStrategy, Emitter) {
 
     describe('helpers/wings/MouseStrategy', function() {
         

@@ -1,14 +1,12 @@
-define('wingsdemo', function(require,exports,module) {
-	var CanvasWrapper = require('wings/CanvasWrapper');
-	var MouseWidget = require('wings/MouseWidget');
-	var Label = require('wings/Label');
-	var Rectangle = require('wings/Rectangle');
-
+function runDemo(optionalWings) {
+	var wings = window.wings || optionalWings;
 	var canvas = document.getElementById('view');
-	var canvasWrapper = new CanvasWrapper(canvas);
-	var parent = new Rectangle();
-	
+
+	// Prepare CanvasWrapper:
+	var canvasWrapper = new wings.CanvasWrapper(canvas);
+
 	// Prepare parent:
+	var parent = new wings.Rectangle();
 	var widgetToDrag = undefined;
 	parent.setPosition(10,10);
 	parent.setSize(400,400);
@@ -16,7 +14,7 @@ define('wingsdemo', function(require,exports,module) {
 	var initialClick;
 	parent.on('mouse:dragrequest', function(event) {
 		widgetToDrag = canvasWrapper.searchDeepestWidgetOnPosition(event.absolutePosition);
-		
+
 		if(widgetToDrag !== parent) {
 			event.acceptCallback(parent,widgetToDrag);
 			event.stopBubbling();
@@ -31,21 +29,21 @@ define('wingsdemo', function(require,exports,module) {
 	// Add some Labels:
 	for(var i = 0, l = 5; i<l; i++) {
 		var y = i*50+20;
-		var label = new Label('20/' + y);
+		var label = new wings.Label('20/' + y);
 		label.setPosition(20,y);
 		label.setSize(150,20);
-		
+
 		label.on('widget:moved', function(e) {
 			e.widget.setText(e.newPosition.left + '/' + e.newPosition.top);
 		});
-		
+
 		parent.addWidget(label);
 	}
-	
-	var additionalParent = new Rectangle();
+
+	var additionalParent = new wings.Rectangle();
 	additionalParent.setSize(500,500)
 	additionalParent.setPosition(10,10);
 	additionalParent.addWidget(parent);
 	canvasWrapper.addWidget(additionalParent);
-	canvasWrapper.redraw();
-});
+	canvasWrapper.redraw();	
+}

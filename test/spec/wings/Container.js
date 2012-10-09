@@ -1,4 +1,4 @@
-define(['wings/Container', 'helpers/Emitter', 'wings/Widget'], function (Container, Emitter, Widget) {
+define(['wings/Container', 'wings/Emitter', 'wings/Widget'], function (Container, Emitter, Widget) {
 
     describe('helpers/wings/Container', function() {
         

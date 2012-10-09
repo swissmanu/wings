@@ -1,6 +1,6 @@
-define(['helpers/Emitter'], function(Emitter) {
+define(['wings/Emitter'], function(Emitter) {
 
-	describe('helpers/Emitter', function() {
+	describe('wings/Emitter', function() {
 		var emitter = new Emitter();
 		var event1 = 'event1';
 		var event2 = 'event2';
