@@ -1,6 +1,6 @@
 {
 	"name": "Wings",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"author": "Manuel Alabor <manuel@alabor.me>",
 	"license": "MIT",
 	"description": "Canvas GUI Toolkit",
