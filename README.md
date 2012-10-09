@@ -8,7 +8,7 @@ Currently the completion of the event engine is my main task.*
 
 ## Integrate into RequireJS project
 The most effective way to integrate Wings is using the source directly by linking
-it into your RequireJS environment.
+it into your [RequireJS](http://requirejs.org/) environment.
 
 ### Step 1: Install dependencies
 To do so, add Wings as dependency to your `package.json`:
@@ -43,10 +43,10 @@ var canvasWrapper = new CanvasWrapper(document.getElementById('view'));
 
 	
 ## Use as standalone library
-In case you are not using a sophisticated RequireJS ecosystem, you can use the
-built version of Wings. It includes the [almond](https://github.com/jrburke/almond)
-module loader and provides a global object which you can use to access Wings'
-modules.
+In case you are not using a sophisticated [RequireJS](http://requirejs.org/)
+ecosystem, you can use the built version of Wings. It includes the
+[almond](https://github.com/jrburke/almond) module loader and provides a
+global object which you can use to access Wings' modules.
 
 ### Step 1: Build Wings
 Clone the Wings repository to your local machine and install all dependencies
