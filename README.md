@@ -71,8 +71,8 @@ You have access to Wings' modules using the global available `wings` object:
 var canvasWrapper = new wings.CanvasWrapper(ocument.getElementById('view'));
 ````
 
-
-## Jake
+## Development
+### Jake
 Wings uses [jake](https://github.com/mde/jake) for building distributables,
 documentation and running tests.
 
@@ -81,7 +81,7 @@ documentation and running tests.
 	jake test-coverage   # Run all tests and create a code coverage report under test/coverage.html  
 	jake dist            # Build Wings Distributable
 	
-## Tests
+### Tests
 Test specifications are implemented using [mocha](http://visionmedia.github.com/mocha/)
 and [Chai](http://chaijs.com/).
 Please use [should](http://chaijs.com/guide/styles/#styles) assertions.
@@ -96,7 +96,7 @@ The most simple way to install `jscoverage` works via [Homebrew](http://mxcl.git
 
 	brew install jscoverage
 
-## Demo & Development
+### Demo & Development
 A short demonstration of Wings's features is implemented in `demo/demo.js`.
 `demo/dev.html` loads each module from its own file dynamically. Perfect for 
 trying out your latest code modifications.
