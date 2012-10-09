@@ -6,12 +6,11 @@ element.
 *Wings is under development. For the moment, the drawing system is fully functional.
 Currently the completion of the event engine is my main task.*
 
-## Integration
-### RequireJS Project
+## Integrate into RequireJS project
 The most effective way to integrate Wings is using the source directly by linking
 it into your RequireJS environment.
 
-#### Step 1: Install dependencies
+### Step 1: Install dependencies
 To do so, add Wings as dependency to your `package.json`:
 
 ````javascript
@@ -23,7 +22,7 @@ To do so, add Wings as dependency to your `package.json`:
 Run `npm install` in your projects root directory to fetch the latest version
 of Wings.
 
-#### Step 2: Configure RequireJS
+### Step 2: Configure RequireJS
 Only one thing left: Add Wings to the `paths` section of RequireJS:
 
 ````javascript
@@ -34,7 +33,7 @@ requirejs.config({
 });
 ````
 
-#### Ready to use
+### Ready to use
 Thats it! RequireJS should now be able to include any of Wings modules:
 
 ````javascript
@@ -43,19 +42,19 @@ var canvasWrapper = new CanvasWrapper(document.getElementById('view'));
 ````
 
 	
-### Standalone Library
+## Use as standalone library
 In case you are not using a sophisticated RequireJS ecosystem, you can use the
 built version of Wings. It includes the [almond](https://github.com/jrburke/almond)
 module loader and provides a global object which you can use to access Wings'
 modules.
 
-#### Step 1: Build Wings
+### Step 1: Build Wings
 Clone the Wings repository to your local machine and install all dependencies
 using `npm install`.
 
 Build your version of Wings with `jake dist`
 
-#### Step 2: Add to your webpage
+### Step 2: Add to your webpage
 Pick up `dist/wings.js` and integrate it as any other javascript file into
 your webpage:
 
@@ -65,7 +64,7 @@ your webpage:
 </head>
 ````
 
-#### Ready to use
+### Ready to use
 You have access to Wings' modules using the global available `wings` object:
 
 ````javascript
