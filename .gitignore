@@ -2,5 +2,4 @@
 .naturaldocs/Data/
 docs/
 node_modules/
-dist/
 test/coverage*
