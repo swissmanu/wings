@@ -5,7 +5,7 @@
 	
 	,baseUrl: './lib'
 	,include: ['wings']
-	
+
 	,wrap: {
 		start: '(function(global, define) {\n'+
 			   // check for amd loader on global namespace
@@ -26,8 +26,7 @@
 			   '  }\n'+
 			   '}(this));\n'
 	}
-
-	,name: '../node_modules/almond/almond'
-	,optimize: 'uglify'
 	
+	,name: '../node_modules/almond/almond'
+	,optimize: 'none'
 })

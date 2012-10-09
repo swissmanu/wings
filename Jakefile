@@ -24,9 +24,6 @@ task('test-coverage', function() {
 
 desc('Build Wings Distributable');
 task('dist', function() {
-	var commands = [ 'node_modules/requirejs/bin/r.js -o build.js' ];
-	
-	jake.exec(commands, function() {
-		complete();
-	}, { stdout: true });
+	var buildDefine = [ 'node_modules/requirejs/bin/r.js -o build.js' ];
+	jake.exec(buildDefine, function() { complete(); }, { stdout: true });
 });

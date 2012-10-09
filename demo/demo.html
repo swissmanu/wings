@@ -2,13 +2,11 @@
 <html>
 <head>
 	<title>Wings Demo || Development</title>
-	<script type="text/javascript" src="../node_modules/requirejs/require.js"></script>
-	<script type="text/javascript" src="demo.js"></script>
+	<script type="text/javascript" data-main="demo.js" src="../node_modules/requirejs/require.js"></script>
 	<script type="text/javascript">
-		require.config({
+		requirejs.config({
 			baseUrl: '../lib'
 		});
-		require(['wings'], function(wings) { runDemo(wings); });
 	</script>
 </head>
 <body>
