@@ -1,6 +1,6 @@
-define(['widgetery/Container', 'helpers/Emitter', 'widgetery/Widget'], function (Container, Emitter, Widget) {
+define(['wings/Container', 'helpers/Emitter', 'wings/Widget'], function (Container, Emitter, Widget) {
 
-    describe('helpers/widgetery/Container', function() {
+    describe('helpers/wings/Container', function() {
         
         it('should be an Emitter', function() {
             new Container().should.be.instanceof(Emitter);

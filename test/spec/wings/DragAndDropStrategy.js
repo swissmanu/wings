@@ -1,4 +1,4 @@
-define(['widgetery/DragAndDropStrategy','widgetery/MouseStrategy'], function (DragAndDropStrategy, MouseStrategy) {
+define(['wings/DragAndDropStrategy','wings/MouseStrategy'], function (DragAndDropStrategy, MouseStrategy) {
 
     describe('DragAndDropStrategy', function() {
 		var MockCanvasWrapper = function MockCanvasWrapper() {

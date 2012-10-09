@@ -1,6 +1,6 @@
-define(['widgetery/CanvasWrapper', 'widgetery/Widget'], function (CanvasWrapper, Widget) {
+define(['wings/CanvasWrapper', 'wings/Widget'], function (CanvasWrapper, Widget) {
 
-    describe('helpers/widgetery/CanvasWrapper', function() {
+    describe('helpers/wings/CanvasWrapper', function() {
 		var mockCanvas = {
 			width: 100
 			,height: 100

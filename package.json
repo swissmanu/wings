@@ -1,5 +1,5 @@
 {
-	"name": "Widgetery",
+	"name": "Wings",
 	"version": "0.0.1",
 	"author": "Manuel Alabor <manuel@alabor.me>",
 	"license": "MIT",
@@ -7,7 +7,7 @@
 	"main": "Jakefile.js",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/swissmanu/Widgetery.git"
+		"url": "https://github.com/swissmanu/Wings.git"
 	},
 	"devDependencies" : {
 		"requirejs": "~1.0.8",

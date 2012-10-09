@@ -1,6 +1,6 @@
-define(['widgetery/MouseWidget', 'widgetery/Widget'], function (MouseWidget, Widget) {
+define(['wings/MouseWidget', 'wings/Widget'], function (MouseWidget, Widget) {
 
-    describe('helpers/widgetery/MouseWidget', function() {
+    describe('helpers/wings/MouseWidget', function() {
         
         it('should be a MouseWidget', function() {
             new MouseWidget().should.be.instanceof(Widget);

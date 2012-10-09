@@ -1,7 +1,7 @@
 Format: 1.52
 
 
-Title: Widgetery
+Title: Wings
 
 # You can also add a sub-title to your menu like this:
 # SubTitle: [subtitle]
@@ -49,19 +49,19 @@ Title: Widgetery
 
 File: Emitter  (helpers/Emitter.js)
 
-Group: Widgetery  {
+Group: Wings  {
 
-   File: Button  (widgetery/Button.js)
-   File: CanvasWrapper  (widgetery/CanvasWrapper.js)
-   File: Container  (widgetery/Container.js)
-   File: DefaultStrategy  (widgetery/DefaultStrategy.js)
-   File: DragAndDropStrategy  (widgetery/DragAndDropStrategy.js)
-   File: Label  (widgetery/Label.js)
-   File: MouseStrategy  (widgetery/MouseStrategy.js)
-   File: MouseWidget  (widgetery/MouseWidget.js)
-   File: Rectangle  (widgetery/Rectangle.js)
-   File: Widget  (widgetery/Widget.js)
-   }  # Group: Widgetery
+   File: Button  (wings/Button.js)
+   File: CanvasWrapper  (wings/CanvasWrapper.js)
+   File: Container  (wings/Container.js)
+   File: DefaultStrategy  (wings/DefaultStrategy.js)
+   File: DragAndDropStrategy  (wings/DragAndDropStrategy.js)
+   File: Label  (wings/Label.js)
+   File: MouseStrategy  (wings/MouseStrategy.js)
+   File: MouseWidget  (wings/MouseWidget.js)
+   File: Rectangle  (wings/Rectangle.js)
+   File: Widget  (wings/Widget.js)
+   }  # Group: Wings
 
 Group: Index  {
 

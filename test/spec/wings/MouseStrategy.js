@@ -1,6 +1,6 @@
-define(['widgetery/MouseStrategy', 'helpers/Emitter'], function (MouseStrategy, Emitter) {
+define(['wings/MouseStrategy', 'helpers/Emitter'], function (MouseStrategy, Emitter) {
 
-    describe('helpers/widgetery/MouseStrategy', function() {
+    describe('helpers/wings/MouseStrategy', function() {
         
         it('should be an Emitter', function() {
             new MouseStrategy().should.be.instanceof(Emitter);

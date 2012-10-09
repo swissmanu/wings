@@ -22,7 +22,7 @@ task('test-coverage', function() {
 	cmd('node', ['test/runner.js','--coverage'], 'test/coverage.html');
 });
 
-desc('Build Widgetery Distributable');
+desc('Build Wings Distributable');
 task('dist', function() {
 	var commands = [ 'node_modules/requirejs/bin/r.js -o build.js' ];
 	

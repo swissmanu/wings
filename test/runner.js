@@ -20,7 +20,7 @@ requirejs.config({
 	nodeRequire: require
 	,baseUrl: __dirname
 	,paths: {
-		widgetery: path.join(libPath, 'widgetery')
+		wings: path.join(libPath, 'wings')
 		,helpers: path.join(libPath, 'helpers')
 	}
 });

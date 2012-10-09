@@ -1,8 +1,8 @@
-define('widgeterydemo', function(require,exports,module) {
-	var CanvasWrapper = require('widgetery/CanvasWrapper');
-	var MouseWidget = require('widgetery/MouseWidget');
-	var Label = require('widgetery/Label');
-	var Rectangle = require('widgetery/Rectangle');
+define('wingsdemo', function(require,exports,module) {
+	var CanvasWrapper = require('wings/CanvasWrapper');
+	var MouseWidget = require('wings/MouseWidget');
+	var Label = require('wings/Label');
+	var Rectangle = require('wings/Rectangle');
 
 	var canvas = document.getElementById('view');
 	var canvasWrapper = new CanvasWrapper(canvas);

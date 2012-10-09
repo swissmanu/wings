@@ -1,4 +1,4 @@
-define(['widgetery/DefaultStrategy','widgetery/MouseStrategy','widgetery/Widget'], function (DefaultStrategy, MouseStrategy,Widget) {
+define(['wings/DefaultStrategy','wings/MouseStrategy','wings/Widget'], function (DefaultStrategy, MouseStrategy,Widget) {
 
     describe('DefaultStrategy', function() {
 		var deepestWidget = new Widget();
