@@ -6,6 +6,63 @@ element.
 *Wings is under development. For the moment, the drawing system is fully functional.
 Currently the completion of the event engine is my main task.*
 
+## Integration
+### RequireJS Project
+The most effective way to integrate Wings is using the source directly by linking
+it into your RequireJS environment.
+
+To do so, add Wings as dependency to your `package.json`:
+
+````javascript
+"dependencies" : {
+	"wings": "git://github.com/swissmanu/wings.git"
+}
+````
+
+Run `npm install` in your projects root directory to fetch the latest version
+of Wings. Only one step left: Add Wings to the `paths` section of RequireJS:
+
+````javascript
+requirejs.config({
+	paths: {
+		wings: '../node_modules/Wings/lib/wings'
+	}
+});
+````
+	
+Thats it! RequireJS should now be able to include any of Wings modules:
+
+````javascript
+var CanvasWrapper = require('wings/CanvasWrapper');
+var canvasWrapper = new CanvasWrapper(document.getElementById('view'));
+````
+	
+### Standalone Library
+In case you are not using a sophisticated RequireJS ecosystem, you can use the
+built version of Wings. It includes the [almond](https://github.com/jrburke/almond)
+module loader and provides a global object which you can use to access Wings'
+modules.
+
+1. Clone the Wings repository to your local machine
+2. Install all dependencies using `cd Wings && npm install`
+3. Build your version of Wings with `jake dist`
+4. Pick up `dist/wings.js` and integrate it as any other javascript file into
+   your webpage
+
+````html
+<head>
+	<script type="text/javascript" src="js/wings.js"></script>
+</head>
+````
+
+5. You have access to Wings' modules using the global available `wings` object:
+
+````javascript
+var canvasWrapper = new wings.CanvasWrapper(ocument.getElementById('view'));
+````
+
+
+
 ## Jake
 Wings uses [jake](https://github.com/mde/jake) for building distributables,
 documentation and running tests.
@@ -30,12 +87,7 @@ The most simple way to install `jscoverage` works via [Homebrew](http://mxcl.git
 
 	brew install jscoverage
 
-## Demo
+## Demo & Development
 A short demonstration of Wings's features is implemented in `demo/demo.js`.
-You can run this demo in two different ways. Load one of the following files in
-your browser:
-
-* `demo/dev.html` loads each module from its own file dynamically. Perfect for
-  trying out your latest code modifications.
-* `demo/dist.html` fetchs the distributable version of Wings for running
-  the demo. Make sure you run `jake dist` before you open this demonstration.
+`demo/dev.html` loads each module from its own file dynamically. Perfect for 
+trying out your latest code modifications.
