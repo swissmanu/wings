@@ -2,6 +2,10 @@
 This is a complete GUI framework which uses a 2D context of an HTML canvas DOM
 element.
 
+## *Disclaimer*
+*Wings is under development. For the moment, the drawing system is fully functional.
+Currently the completion of the event engine is my main task.*
+
 ## Jake
 Wings uses [jake](https://github.com/mde/jake) for building distributables,
 documentation and running tests.
