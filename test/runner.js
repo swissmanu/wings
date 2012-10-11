@@ -21,7 +21,6 @@ requirejs.config({
 	,baseUrl: __dirname
 	,paths: {
 		wings: path.join(libPath, 'wings')
-		,helpers: path.join(libPath, 'helpers')
 	}
 });
 

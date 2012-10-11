@@ -1,6 +1,6 @@
 define(['wings/Button', 'wings/Widget'], function (Button, Widget) {
 
-    describe('helpers/wings/Button', function() {
+    describe('wings/Button', function() {
 	
         it('should be a Widget', function() {
             new Button().should.be.instanceof(Widget);
