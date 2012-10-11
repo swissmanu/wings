@@ -2,7 +2,7 @@ define(['wings/DragAndDropStrategy','wings/MouseStrategy'], function (DragAndDro
 
     describe('DragAndDropStrategy', function() {
 		var MockCanvasWrapper = function MockCanvasWrapper() {
-			this.searchMouseWidgetsOnPosition = function() {};
+			this.searchWidgetsOnPosition = function() {};
 			this.emit = function() {};
 			this.useDefaultStrategy = function() {};
 			this.searchDeepestWidgetOnPosition = function() {};

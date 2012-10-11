@@ -1,9 +1,9 @@
-define(['wings/Button', 'wings/MouseWidget'], function (Button, MouseWidget) {
+define(['wings/Button', 'wings/Widget'], function (Button, Widget) {
 
     describe('helpers/wings/Button', function() {
 	
-        it('should be a MouseWidget', function() {
-            new Button().should.be.instanceof(MouseWidget);
+        it('should be a Widget', function() {
+            new Button().should.be.instanceof(Widget);
         });
 
 		describe('Event Handlers', function() {

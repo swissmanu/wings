@@ -2,7 +2,13 @@ define(function(require) {
 	var CanvasWrapper = require('wings/CanvasWrapper');
 	var Rectangle = require('wings/Rectangle');
 	var Label = require('wings/Label');
+	var canvasWrapper = new CanvasWrapper(document.getElementById('view'));
+	
+	
 
+
+
+	/*
 	// Prepare CanvasWrapper:
 	var canvas = document.getElementById('view');
 	var canvasWrapper = new CanvasWrapper(canvas);
@@ -47,5 +53,6 @@ define(function(require) {
 	additionalParent.setPosition(10,10);
 	additionalParent.addWidget(parent);
 	canvasWrapper.addWidget(additionalParent);
+	*/
 	canvasWrapper.redraw();	
 });

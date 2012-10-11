@@ -3,7 +3,7 @@ define(['wings/DefaultStrategy','wings/MouseStrategy','wings/Widget'], function 
     describe('DefaultStrategy', function() {
 		var deepestWidget = new Widget();
 		var MockCanvasWrapper = function MockCanvasWrapper() {
-			this.searchMouseWidgetsOnPosition = function() {};
+			this.searchWidgetsOnPosition = function() {};
 			this.searchDeepestWidgetOnPosition = function() { return deepestWidget; };
 			this.emit = function() {};
 		};

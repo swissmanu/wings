@@ -275,6 +275,44 @@ define(['wings/Widget', 'wings/Container'], function (Widget, Container) {
 			});
 		});
 		
+		describe('isMouseOver()', function() {
+			var widget = new Widget();
+			
+			it('should return true after a mouse:enter event was received', function() {
+				var enterEvent = widget.createDispatchableEvent('mouse:enter');
+				widget.emit('dispatch', enterEvent);
+				widget.isMouseOver().should.be.true;
+			});
+			
+			it('should return false after a mouse:exit event was received', function() {
+				var exitEvent = widget.createDispatchableEvent('mouse:exit');
+				widget.emit('dispatch',exitEvent);
+				widget.isMouseOver().should.be.false;
+			});
+		});
+		
+		describe('setDraggable()', function() {
+			var widget = new Widget();
+			
+			it('should enable the ability to be draggable', function() {
+				widget.setDraggable(true);
+				widget.isDraggable().should.be.true;
+			});
+		});
+		
+		describe('isDraggable()', function() {
+			var widget = new Widget();
+			
+			it('should return false by default', function() {
+				widget.isDraggable().should.be.false;
+			});
+			
+			it('should return true after Widget was made draggable', function() {
+				widget.setDraggable(true);
+				widget.isDraggable().should.be.true;
+			});
+		});
+		
     });
 	
 });
