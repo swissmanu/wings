@@ -1,6 +1,6 @@
-define(['wings/LayoutManager'], function(LayoutManager) {
+define(['wings/layout/LayoutManager'], function(LayoutManager) {
 
-	describe('wings/LayoutManager', function() {
+	describe('wings/layout/LayoutManager', function() {
 
 		describe('LayoutManager()', function() {
 			it('should create a new instance of LayoutManager', function() {
