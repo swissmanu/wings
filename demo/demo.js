@@ -1,23 +1,16 @@
 define(function(require) {
 	var CanvasWrapper = require('wings/CanvasWrapper');
-	var Rectangle = require('wings/Rectangle');
+	var Panel = require('wings/Panel');
 	var Label = require('wings/Label');
 	var canvasWrapper = new CanvasWrapper(document.getElementById('view'));
-	
-	
-
-
-
-	/*
-	// Prepare CanvasWrapper:
-	var canvas = document.getElementById('view');
-	var canvasWrapper = new CanvasWrapper(canvas);
 
 	// Prepare parent:
-	var parent = new Rectangle();
+	var parent = new Panel();
 	var widgetToDrag = undefined;
 	parent.setPosition(10,10);
 	parent.setSize(400,400);
+	parent.setBackgroundColor('blue');
+	parent.setBorderColor('white');
 	parent.setDraggable(true);
 	var initialClick;
 	parent.on('mouse:dragrequest', function(event) {
@@ -48,11 +41,13 @@ define(function(require) {
 		parent.addWidget(label);
 	}
 
-	var additionalParent = new Rectangle();
+	var additionalParent = new Panel();
 	additionalParent.setSize(500,500)
 	additionalParent.setPosition(10,10);
+	additionalParent.setBackgroundColor('red');
+	additionalParent.setBorderColor('black');
 	additionalParent.addWidget(parent);
 	canvasWrapper.addWidget(additionalParent);
-	*/
+	
 	canvasWrapper.redraw();	
 });
