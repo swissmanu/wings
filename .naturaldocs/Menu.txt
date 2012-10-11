@@ -47,8 +47,6 @@ Title: Wings
 # --------------------------------------------------------------------------
 
 
-File: Emitter  (helpers/Emitter.js)
-
 Group: Wings  {
 
    File: Button  (wings/Button.js)
@@ -56,11 +54,18 @@ Group: Wings  {
    File: Container  (wings/Container.js)
    File: DefaultStrategy  (wings/DefaultStrategy.js)
    File: DragAndDropStrategy  (wings/DragAndDropStrategy.js)
+   File: Emitter  (wings/Emitter.js)
    File: Label  (wings/Label.js)
    File: MouseStrategy  (wings/MouseStrategy.js)
-   File: MouseWidget  (wings/MouseWidget.js)
-   File: Rectangle  (wings/Rectangle.js)
+   File: Panel  (wings/Panel.js)
    File: Widget  (wings/Widget.js)
+
+   Group: Layout  {
+
+      File: LayoutManager  (wings/layout/LayoutManager.js)
+      File: BoxLayout  (wings/layout/BoxLayout.js)
+      }  # Group: Layout
+
    }  # Group: Wings
 
 Group: Index  {
@@ -72,5 +77,7 @@ Group: Index  {
    Event Handler Index: Event Handlers
    Private Member Index: Private Members
    Event Index: Events
+   Constant Index: Constants
+   Type Index: Types
    }  # Group: Index
 

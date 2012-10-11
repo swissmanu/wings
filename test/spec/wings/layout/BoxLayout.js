@@ -35,7 +35,7 @@ define(['wings/layout/LayoutManager','wings/layout/BoxLayout','wings/Widget','wi
 			});
 			
 			it('should lay out widgets without horizontal margin correctly', function() {
-				var boxLayout = new BoxLayout(0);
+				var boxLayout = new BoxLayout(BoxLayout.ORIENTATION.LEFT, 0);
 				parent.setSize(200,50);
 				
 				var expectedLeftPositionWidget1 = 0;
@@ -50,7 +50,7 @@ define(['wings/layout/LayoutManager','wings/layout/BoxLayout','wings/Widget','wi
 			});
 			
 			it('should lay out widgets with default horizontal margin correctly', function() {
-				var boxLayout = new BoxLayout();
+				var boxLayout = new BoxLayout(BoxLayout.ORIENTATION.LEFT);
 				var defaultMargin = 5;
 				parent.setSize(200,50);
 				
@@ -67,7 +67,7 @@ define(['wings/layout/LayoutManager','wings/layout/BoxLayout','wings/Widget','wi
 			
 			it('should lay out widgets with specified horizontal margin correctly', function() {
 				var margin = 10;
-				var boxLayout = new BoxLayout(margin);
+				var boxLayout = new BoxLayout(BoxLayout.ORIENTATION.LEFT, margin);
 				parent.setSize(200,50);
 				
 				var expectedLeftPositionWidget1 = 0;
