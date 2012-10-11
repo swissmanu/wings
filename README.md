@@ -81,6 +81,12 @@ documentation and running tests.
 	jake test-coverage   # Run all tests and create a code coverage report under test/coverage.html  
 	jake dist            # Build Wings Distributable
 	
+### Documentation
+Instead of generating your own documentation via `jake docs`, you can browse
+an online version here:
+
+* http://swissmanu.github.com/wings/docs/
+	
 ### Tests
 Test specifications are implemented using [mocha](http://visionmedia.github.com/mocha/)
 and [Chai](http://chaijs.com/).
