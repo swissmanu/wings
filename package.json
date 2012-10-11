@@ -1,9 +1,9 @@
 {
-	"name": "Wings",
-	"version": "0.0.2",
+	"name": "wings",
+	"version": "0.0.3",
 	"author": "Manuel Alabor <manuel@alabor.me>",
 	"license": "MIT",
-	"description": "Canvas GUI Toolkit",
+	"description": "A UI library, implemented in javascript, rendered in a canvas DOM element.",
 	"main": "Jakefile.js",
 	"repository": {
 		"type": "git",
