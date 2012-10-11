@@ -66,6 +66,11 @@ Group: Wings  {
       File: BoxLayout  (wings/layout/BoxLayout.js)
       }  # Group: Layout
 
+   Group: Mixins  {
+
+      File: Stylable  (wings/mixin/Stylable.js)
+      }  # Group: Mixins
+
    }  # Group: Wings
 
 Group: Index  {
