@@ -6,7 +6,7 @@ define(function(require) {
 	var Button = require('wings/Button');
 	var canvasWrapper = new CanvasWrapper(document.getElementById('view'));
 	
-	var orientation = BoxLayout.ORIENTATION.RIGHT;
+	var orientation = BoxLayout.ORIENTATION.LEFT;
 	var panel = new Panel();
 	panel.setSize(500,50);
 	panel.setBackgroundColor('lightgray');
@@ -17,8 +17,8 @@ define(function(require) {
 	panel.on('mouse:click', function(e) {
 		var subPanel = new Label('#' + (panel.getWidgetCount()+1));
 		subPanel.setSize(30,20);
-		//subPanel.setBorderColor('#FF0000');
-		//subPanel.setBackgroundColor('rgba(255,0,0,.1)');
+		subPanel.setBorderColor('#FF0000');
+		subPanel.setBackgroundColor('rgba(255,0,0,.1)');
 		panel.addWidget(subPanel);
 	});
 	
