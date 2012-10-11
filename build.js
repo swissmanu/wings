@@ -28,5 +28,5 @@
 	}
 	
 	,name: '../node_modules/almond/almond'
-	,optimize: 'none'
+	,optimize: 'uglify'
 })
