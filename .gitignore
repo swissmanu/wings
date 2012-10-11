@@ -1,2 +1,3 @@
 .naturaldocs/
 node_modules/
+test/coverage*
