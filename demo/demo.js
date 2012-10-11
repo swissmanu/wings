@@ -2,8 +2,37 @@ define(function(require) {
 	var CanvasWrapper = require('wings/CanvasWrapper');
 	var Panel = require('wings/Panel');
 	var Label = require('wings/Label');
+	var BoxLayout = require('wings/layout/BoxLayout');
+	var Button = require('wings/Button');
 	var canvasWrapper = new CanvasWrapper(document.getElementById('view'));
+	
+	var orientation = BoxLayout.ORIENTATION.RIGHT;
+	var panel = new Panel();
+	panel.setSize(500,50);
+	panel.setBackgroundColor('lightgray');
+	panel.setBorderColor('black');
+	panel.setLayoutManager(new BoxLayout(orientation));
+	canvasWrapper.addWidget(panel);
+	
+	panel.on('mouse:click', function(e) {
+		var subPanel = new Label('#' + (panel.getWidgetCount()+1));
+		subPanel.setSize(30,20);
+		//subPanel.setBorderColor('#FF0000');
+		//subPanel.setBackgroundColor('rgba(255,0,0,.1)');
+		panel.addWidget(subPanel);
+	});
+	
+	var btnToggleOrientation = new Button('Toggle Orientation');
+	btnToggleOrientation.setSize(150,20);
+	btnToggleOrientation.setPosition(0,60);
+	btnToggleOrientation.on('mouse:click', function(e) {
+		if(orientation === 0) orientation = 1;
+		else orientation = 0;
+		panel.setLayoutManager(new BoxLayout(orientation));
+	});
+	canvasWrapper.addWidget(btnToggleOrientation);
 
+	/*
 	// Prepare parent:
 	var parent = new Panel();
 	var widgetToDrag = undefined;
@@ -48,6 +77,6 @@ define(function(require) {
 	additionalParent.setBorderColor('black');
 	additionalParent.addWidget(parent);
 	canvasWrapper.addWidget(additionalParent);
-	
+	*/
 	canvasWrapper.redraw();	
 });
