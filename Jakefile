@@ -2,6 +2,7 @@ require('jake-utils');
 
 desc('Create Documentation using NaturalDocs');
 task('docs', function() {
+	require('fs').mkdirSync('docs');
 	var commands = [
 		'NaturalDocs -i ./lib -o HTML ./docs -p ./.naturaldocs'
 	];
