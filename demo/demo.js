@@ -9,7 +9,7 @@ define(function(require) {
 	var widgetToDrag = undefined;
 	parent.setPosition(10,10);
 	parent.setSize(400,400);
-	parent.setBackgroundColor('blue');
+	parent.setBackgroundColor('lightgray');
 	parent.setBorderColor('white');
 	parent.setDraggable(true);
 	var initialClick;
@@ -44,7 +44,7 @@ define(function(require) {
 	var additionalParent = new Panel();
 	additionalParent.setSize(500,500)
 	additionalParent.setPosition(10,10);
-	additionalParent.setBackgroundColor('red');
+	additionalParent.setBackgroundColor('gray');
 	additionalParent.setBorderColor('black');
 	additionalParent.addWidget(parent);
 	canvasWrapper.addWidget(additionalParent);
