@@ -84,5 +84,13 @@ define(['wings/layout/LayoutManager','wings/layout/BoxLayout','wings/Widget','wi
 		});
 		
     });
+
+	describe('getOrientation()', function() {
+		it('should return the correct orientation value', function() {
+			var orientation = BoxLayout.ORIENTATION.LEFT;
+			var boxLayout = new BoxLayout(orientation);
+			boxLayout.getOrientation().should.be.equal(orientation);
+		});
+	});
 	
 });
