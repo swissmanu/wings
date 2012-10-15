@@ -32,6 +32,30 @@ define(function(require) {
 	});
 	canvasWrapper.addWidget(btnToggleOrientation);
 
+	(function() {
+		var btnZoomAdd = new Button('+');
+		btnZoomAdd.setSize(20,20);
+		btnZoomAdd.setPosition(180,60);
+		btnZoomAdd.on('mouse:click', function(e) {
+			var currentZoomFactor = canvasWrapper.getZoomFactor();
+			canvasWrapper.setZoomFactor(currentZoomFactor+0.1);
+		});
+		canvasWrapper.addWidget(btnZoomAdd);
+		
+		var btnZoomMinus = new Button('-');
+		btnZoomMinus.setSize(20,20);
+		btnZoomMinus.setPosition(210,60)
+		btnZoomMinus.on('mouse:click', function(e) {
+			var currentZoomFactor = canvasWrapper.getZoomFactor();
+			if(currentZoomFactor > 0.5) {
+				canvasWrapper.setZoomFactor(currentZoomFactor-0.1);
+			}
+		});
+		canvasWrapper.addWidget(btnZoomMinus);
+
+	})();
+
+
 	/*
 	// Prepare parent:
 	var parent = new Panel();

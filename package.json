@@ -1,6 +1,6 @@
 {
 	"name": "wings",
-	"version": "0.0.3",
+	"version": "0.1.0",
 	"author": "Manuel Alabor <manuel@alabor.me>",
 	"license": "MIT",
 	"description": "A UI library, implemented in javascript, rendered in a canvas DOM element.",

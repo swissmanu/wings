@@ -5,12 +5,60 @@ define(['wings/CanvasWrapper', 'wings/Widget'], function (CanvasWrapper, Widget)
 			width: 100
 			,height: 100
 			,addEventListener: function() {}
-			,getContext: function() {}
+			,getContext: function() { return {
+				save:function(){}
+				,restore:function(){}
+				,scale:function(){}
+				,translate:function(){}
+				,beginPath:function(){}
+				,rect:function(){}
+				,clip:function(){}
+				,clearRect:function(){}
+			}}
 		};
 		
         it('should be a Widget', function() {
             new CanvasWrapper(mockCanvas).should.be.instanceof(Widget);
         });
+
+		describe('getZoomFactor()', function() {
+			it('should return the default zoom factor', function() {
+				var canvasWrapper = new CanvasWrapper(mockCanvas);
+				var defaultZoomFactor = 1;
+				
+				canvasWrapper.getZoomFactor().should.be.equal(defaultZoomFactor);
+			});
+		});
+		
+		describe('setZoomFactor()', function() {
+			var canvasWrapper;
+			var newZoomFactor = 2;
+			
+			beforeEach(function() {
+				canvasWrapper = new CanvasWrapper(mockCanvas);
+			});
+			
+			it('should change the zoom factor', function() {
+				canvasWrapper.setZoomFactor(newZoomFactor);
+				canvasWrapper.getZoomFactor().should.be.equal(newZoomFactor);
+			});
+			
+			it('should dispatch a canvaswrapper:zoomfactorchanged event', function(done) {
+				canvasWrapper.once('canvaswrapper:zoomfactorchanged', function(e) {
+					if(e.newZoomFactor === newZoomFactor) done();
+				});
+				canvasWrapper.setZoomFactor(newZoomFactor);
+			});
+			
+			it('should not allow zoom factors less than 0', function() {
+				var invalidZoomFactor = -1;
+				
+				(function() {
+					canvasWrapper.setZoomFactor(invalidZoomFactor);
+				}).should.throw();
+			});
+			
+		});
 
 		describe('searchDeepestWidgetOnPosition()', function() {
 			var canvasWrapper;
